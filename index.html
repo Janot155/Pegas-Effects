@@ -30,7 +30,9 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 #toasts{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:99}.toast{background:#262b35;border:1px solid var(--ln);padding:8px 12px;border-radius:6px;max-width:380px}.toast.err{border-color:#c0504d}
 #mod{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}#mod>div{background:var(--p);border:1px solid var(--ln);border-radius:10px;padding:16px;width:min(480px,92vw);max-height:86vh;overflow:auto}#mod h3{margin-bottom:10px}#mod .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}progress{width:100%;accent-color:var(--ac)}
 .chead{display:flex;flex-direction:column;padding:6px 4px 8px;border-bottom:1px solid var(--ln)}.fxfolder{border:1px solid var(--ln);border-radius:7px;margin:7px 0;overflow:hidden;background:#15181e}.fxfolder summary{padding:8px 9px;cursor:pointer;color:var(--tx);font-weight:600;background:var(--p2);list-style:none}.fxfolder summary::-webkit-details-marker{display:none}.fxfolder summary:before{content:"▸";display:inline-block;margin-right:7px;color:var(--ac)}.fxfolder[open] summary:before{content:"▾"}.fxfolder .grid{padding:6px}.fxfolder .grid button{font-size:12px;padding:6px}.retime-actions{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.retime-actions button{font-size:11px}.format-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.format-tile{text-align:left;padding:10px;min-height:54px}.format-tile b{display:block}.format-tile small{color:var(--mu)}.chead small{color:var(--mu)}.fx.c .row{display:none}.row label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-</style></head><body>
+</style>
+<link rel="stylesheet" href="./src/styles/mobile.css">
+</head><body>
 <div id="app">
 <header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
 <aside id="left"><nav id="ltabs"></nav><div id="lbody"></div></aside><div class="sp" id="sl"></div>
@@ -39,6 +41,8 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 <section id="tl"><div id="tbar"></div><div id="tscroll"><div id="tlin"></div></div></section>
 </div><svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="fsharp" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" preserveAlpha="true"/></filter><filter id="fedge" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/></filter></svg><div id="toasts"></div><div id="mod"><div></div></div>
 <input type="file" id="fm" multiple hidden accept="video/*,image/*,audio/*,.mp4,.m4v,.mov,.webm,.avi,.png,.jpg,.jpeg,.gif,.wav,.mp3,.aac,.ffx,.json"><input type="file" id="fp" hidden accept=".json,.ffx"><input type="file" id="fj" hidden accept=".json">
+<script src="./src/performance/RuntimeProfile.js"></script>
+<script src="./src/audio/EmbeddedVideoAudio.js"></script>
 <script>
 'use strict';
 const $=(s,e=document)=>e.querySelector(s),el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
@@ -317,7 +321,7 @@ function glSelfTest(){
  GL.W=0;GL.H=0;return true
 }
 /* ----- preview frame cache: bounded LRU of fully composited frames, paused/scrub only ----- */
-const FC={map:new Map(),bytes:0,max:Math.min(256,(navigator.deviceMemory||4)*48)*1048576,hits:0,miss:0,sig:'',spare:[]};
+const FC={map:new Map(),bytes:0,max:(window.CutroomRuntimeProfile?.cacheBytes||Math.min(192,(navigator.deviceMemory||4)*32)*1048576),hits:0,miss:0,sig:'',spare:[]};
 function fcClear(){for(const c of FC.map.values())if(FC.spare.length<4)FC.spare.push(c);FC.map.clear();FC.bytes=0;FC.sig=''}
 const projSig=()=>JSON.stringify([P.tracks,P.clips,P.w,P.h,P.fit,P.fps])+'|'+Object.keys(blobs).length;
 function previewSettled(t){
@@ -645,14 +649,14 @@ async function showPresetPreview(pr){
 }
 /* ---------- state ---------- */
 const newProj=()=>({name:'Untitled',w:1920,h:1080,format:'landscape',fit:'contain',fps:30,tracks:[{id:'T1',n:'Text',k:'t'},{id:'V2',n:'Video 2',k:'v'},{id:'V1',n:'Video 1',k:'v'},{id:'A1',n:'Audio 1',k:'a'},{id:'A2',n:'Audio 2',k:'a'}],clips:[],media:{}});
-let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=.5,qualityMode='auto',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
+let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=(window.CutroomRuntimeProfile?.recommendedPreviewScale||.5),qualityMode='auto',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
 const blobs={},urls={},els={},gains={},peaks={},HW=132,cur=()=>P.clips.find(c=>c.id==sel),dirty=()=>dirtyN=1,endT=()=>Math.max(0,...P.clips.map(c=>c.start+c.dur)),trk=id=>P.tracks.find(t=>t.id==id);
 const isA=c=>!c.text&&P.media[c.media]?.type=='audio',kind=c=>c.text?'t':isA(c)?'a':'v',url=id=>urls[id]??=URL.createObjectURL(blobs[id]);
 const anySolo=()=>P.tracks.some(t=>t.solo),live=tr=>!tr.hide&&(!anySolo()||tr.solo),audible=tr=>!tr.mute&&(!anySolo()||tr.solo);
 function snap(tag='x'){const n=Date.now();if(tag==lastTag&&n-lastT<700){lastT=n;return}lastTag=tag;lastT=n;hist.push(JSON.stringify([P.tracks,P.clips]));if(hist.length>150)hist.shift();redoS=[]}
 function restore(s){[P.tracks,P.clips]=JSON.parse(s);if(!cur())sel=null;gc();drawTL();drawProps();dirty()}
 const undo=()=>{if(hist.length){redoS.push(JSON.stringify([P.tracks,P.clips]));restore(hist.pop());lastTag=''}},redo=()=>{if(redoS.length){hist.push(JSON.stringify([P.tracks,P.clips]));restore(redoS.pop());lastTag=''}};
-function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();delete els[id];delete gains[id];delete retimeFrames[id]}}
+function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();window.CutroomEmbeddedAudio?.dispose(id);delete els[id];delete gains[id];delete retimeFrames[id]}}
 /* ---------- media manager ---------- */
 function ensureAC(){if(!AC){AC=new AudioContext();MD=AC.createMediaStreamDestination();master=AC.createGain();master.connect(AC.destination);master.connect(MD)}return AC}
 const waitEv=(e,ev,ms=9000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout')),ms);e.addEventListener(ev,()=>{clearTimeout(t);res()},{once:true});e.addEventListener('error',()=>{clearTimeout(t);rej(new Error('decode'))},{once:true})});
@@ -721,19 +725,63 @@ function requestVideoSeek(e,st,fps){
  try{e.currentTime=target;if(Math.round((Number(e.currentTime)||0)*fps)===currentFrame&&Math.abs(target-(Number(e.currentTime)||0))<.25/fps)e._cutroomSeeking=false}
  catch{e._cutroomSeeking=false;return false}return true
 }
-function sync(t,play,exportMode=false){for(const c of P.clips){const tr=trk(c.track),m=P.media[c.media];if(c.text||!m||m.type==='image')continue;if(exportMode&&m.type==='video'&&(c.timeMap||c.rev||hasPT(c)))continue;const e=elFor(c);if(!e)continue;const lt=t-c.start,act=lt>=0&&lt<c.dur;if(AC&&!gains[c.id]){const g=AC.createGain();try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}}
-if(!act){if(!e.paused)e.pause();e._cutroomRetimeMode='inactive';continue}
-const fps=Math.max(1,m.fps||P.fps||30),mp=mappedProgress(c,lt),span=Math.max(0,c.dur*c.speed),mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;let st;if(mp!==null){st=mapIn+mp*mapSpan;if(mp>=.999999)st-=frame}else if(c.rev)st=c.in+Math.max(0,span-qt(c,lt)*c.speed-frame);else st=c.in+qt(c,lt)*c.speed;st=clamp(st,0,Math.max(0,(m.dur||1e9)-frame));
-const gv=get(c,'vol',lt)/100*(c.fi&&lt<c.fi?lt/c.fi:1)*(c.fo&&c.dur-lt<c.fo?(c.dur-lt)/c.fo:1)*(audible(tr)&&(tr.k==='a'||live(tr))?1:0);if(gains[c.id])gains[c.id].gain.value=gv;else e.volume=clamp(gv,0,1);
-const remapped=mp!==null||c.rev||hasPT(c);if(!remapped){if(play){const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;if(e.paused)e.play().catch(()=>{});if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}}else{e.pause();requestVideoSeek(e,st,fps)}e._cutroomRetimeMode='normal';continue}
-// Deterministic retime path: pause the media element and seek to the mapped
-// source frame. This supports positive, zero and negative parts of one curve.
-// The main loop renders FIRST, then calls sync(), so a completed decoded frame
-// is shown before the next seek begins. This prevents the old frozen-cache bug.
-const rate=hasPT(c)?mappedSpeed(c,lt):(mp!==null?mappedSpeed(c,lt):(c.rev?-c.speed:c.speed));
-e.pause();e._cutroomRetimeMode=rate<-.025?'reverse':rate>.025?'forward-step':'hold';
-if(play)e.playbackRate=1;requestVideoSeek(e,st,fps);continue
-}}
+function sync(t,play,exportMode=false){
+ for(const c of P.clips){
+  const tr=trk(c.track),m=P.media[c.media];
+  if(c.text||!m||m.type==='image')continue;
+  const e=elFor(c);if(!e)continue;
+  const lt=t-c.start,act=lt>=0&&lt<c.dur;
+  const video=m.type==='video';
+  const mp=mappedProgress(c,lt);
+  const remapped=video&&(mp!==null||c.rev||hasPT(c));
+  if(AC&&!gains[c.id]){
+   const g=AC.createGain();
+   try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}
+  }
+  if(!act){
+   if(!e.paused)e.pause();
+   e.muted=false;
+   window.CutroomEmbeddedAudio?.stop(c.id);
+   e._cutroomRetimeMode='inactive';
+   continue;
+  }
+  const fps=Math.max(1,m.fps||P.fps||30),span=Math.max(0,c.dur*c.speed),
+   mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,
+   mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;
+  let st;
+  if(video&&mp!==null){st=mapIn+mp*mapSpan;if(mp>=.999999)st-=frame}
+  else if(video&&c.rev)st=c.in+Math.max(0,span-qt(c,lt)*c.speed-frame);
+  else st=c.in+qt(c,lt)*c.speed;
+  st=clamp(st,0,Math.max(0,(m.dur||1e9)-frame));
+  const gv=get(c,'vol',lt)/100*(c.fi&&lt<c.fi?lt/c.fi:1)*(c.fo&&c.dur-lt<c.fo?(c.dur-lt)/c.fo:1)*(audible(tr)&&(tr.k==='a'||live(tr))?1:0);
+  if(gains[c.id])gains[c.id].gain.value=remapped?0:gv;
+  else e.volume=remapped?0:clamp(gv,0,1);
+  if(remapped){
+   // The picture follows the retime curve; the original soundtrack keeps its
+   // own forward-only clock and therefore never reverses or boomerangs.
+   e.muted=true;
+   e.pause();e._cutroomRetimeMode='retimed-video';
+   if(AC)window.CutroomEmbeddedAudio?.sync(c.id,e.currentSrc||e.src,AC,master,
+      c.in+qt(c,lt)*c.speed,!!play,c.speed,gv);
+   requestVideoSeek(e,st,fps);
+   continue;
+  }
+  e.muted=false;
+  window.CutroomEmbeddedAudio?.stop(c.id);
+  if(!video){
+   // Audio-only clips always retain their ordinary timeline playback.
+   if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)e.play().catch(()=>{});}
+   else{e.pause();requestVideoSeek(e,st,fps)}
+   e._cutroomRetimeMode='normal';continue;
+  }
+  if(play){
+   const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;
+   if(e.paused)e.play().catch(()=>{});
+   if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}
+  }else{e.pause();requestVideoSeek(e,st,fps)}
+  e._cutroomRetimeMode='normal';
+ }
+}
 const cv=$('#cv'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
 function resizeCv(){fcClear();const q=exporting?1:Q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
 function zoomCss(){if(zoomV){cv.style.width=P.w*zoomV+'px';cv.style.height=P.h*zoomV+'px';cv.style.maxWidth=cv.style.maxHeight='none'}else{cv.style.width=P.w+'px';cv.style.height=P.h+'px';cv.style.maxWidth=cv.style.maxHeight='100%'}}
