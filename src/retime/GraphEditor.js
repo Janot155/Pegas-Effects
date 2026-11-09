@@ -323,14 +323,19 @@
       emit(true);
     });
 
+    let resizeObserver = null;
     if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(geometry);
-      observer.observe(host);
+      resizeObserver = new ResizeObserver(() => {
+        if (!host.isConnected) { resizeObserver.disconnect(); return; }
+        geometry();
+      });
+      resizeObserver.observe(host);
     }
     geometry();
     return {
       updatePlayhead(t) { lastPlayhead = clamp(Number(t) || 0, 0, 1); draw(); },
-      update(pointsNext) { points = normalize(pointsNext); selected = clamp(selected, 0, points.length - 1); draw(); }
+      update(pointsNext) { points = normalize(pointsNext); selected = clamp(selected, 0, points.length - 1); draw(); },
+      destroy() { if (resizeObserver) resizeObserver.disconnect(); host.innerHTML = ''; }
     };
   }
   window.CutroomRetimeGraph = { mount };
