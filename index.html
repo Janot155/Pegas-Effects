@@ -728,6 +728,8 @@ function requestVideoSeek(e,st,fps){
  try{e.currentTime=target;if(Math.round((Number(e.currentTime)||0)*fps)===currentFrame&&Math.abs(target-(Number(e.currentTime)||0))<.25/fps)e._cutroomSeeking=false}
  catch{e._cutroomSeeking=false;return false}return true
 }
+function requestMediaPlay(e){if(!e||!e.paused)return Promise.resolve();if(e._cutroomPlayPromise)return e._cutroomPlayPromise;let raw;try{raw=Promise.resolve(e.play())}catch{return Promise.resolve()}const tracked=raw.catch(()=>{}).finally(()=>{if(e._cutroomPlayPromise===tracked)e._cutroomPlayPromise=null});e._cutroomPlayPromise=tracked;return tracked}
+async function primeExportAudio(){const pending=Object.values(els).map(e=>e?._cutroomPlayPromise).filter(Boolean);await Promise.all(pending);await window.CutroomEmbeddedAudio?.primeAll?.()}
 function sync(t,play,exportMode=false){
  for(const c of P.clips){
   const tr=trk(c.track),m=P.media[c.media];
@@ -773,7 +775,7 @@ function sync(t,play,exportMode=false){
   window.CutroomEmbeddedAudio?.stop(c.id);
   if(!video){
    // Audio-only clips always retain their ordinary timeline playback.
-   if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)e.play().catch(()=>{});}
+   if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)requestMediaPlay(e);}
    else{e.pause();requestVideoSeek(e,st,fps)}
    e._cutroomRetimeMode='normal';continue;
   }
@@ -868,7 +870,7 @@ function formatDlg(){const body=el('div');body.innerHTML='<h3>Exact canvas forma
 function settings(){const b=el('div',null,'<h3>Project settings</h3>');const o={name:P.name,w:P.w,h:P.h,fps:P.fps};inp(b,'Name',o,'name','text');inp(b,'Width',o,'w');inp(b,'Height',o,'h');inp(b,'Frame rate',o,'fps','text',[24,25,30,50,60,90,120].map(x=>[x,x+' fps']));modal(b,[['Cancel'],['Apply',()=>{P.name=o.name;$('#pname').value=P.name;P.fps=clamp(+o.fps||30,1,120);applyCanvasSize(o.w,o.h,'custom')} ]])}
 /* ---------- export ---------- */
 function exportDlg(){if(!window.MediaRecorder)return toast('This browser has no MediaRecorder, so video export is unavailable.',1);if(!P.clips.length)return toast('Add clips to the timeline first.',1);const mimes={webm:['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mp4:['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4']},ok=Object.fromEntries(Object.entries(mimes).map(([k,v])=>[k,v.find(x=>MediaRecorder.isTypeSupported(x))]));
-const fourKScale=3840/Math.max(P.w,P.h),fourKW=Math.round(P.w*fourKScale/2)*2,fourKH=Math.round(P.h*fourKScale/2)*2,fpsOptions=[24,25,30,50,60,90,120].map(x=>[x,String(x)+' fps']),o={fmt:ok.mp4?'mp4':'webm',scale:'1',fps:P.fps,vb:12,ab:192},b=el('div',null,'<h3>Export video</h3>');inp(b,'Format',o,'fmt','text',[...(ok.mp4?[['mp4','MP4 (H.264)']]:[]),...(ok.webm?[['webm','WebM (VP9)']]:[])]);inp(b,'Output size',o,'scale',[['1',`Exact canvas · ${P.w} × ${P.h}`],['4k',`4K UHD · ${fourKW} × ${fourKH}`],['2','200% of canvas'],['.75','75% of canvas'],['.5','50% of canvas']]);inp(b,'Frame rate',o,'fps','text',fpsOptions);inp(b,'Video Mbps',o,'vb');inp(b,'Audio kbps',o,'ab');
+const fourKScale=3840/Math.max(P.w,P.h),fourKW=Math.round(P.w*fourKScale/2)*2,fourKH=Math.round(P.h*fourKScale/2)*2,fpsOptions=[24,25,30,50,60,90,120].map(x=>[x,String(x)+' fps']),o={fmt:ok.mp4?'mp4':'webm',scale:'1',fps:P.fps,vb:12,ab:192},b=el('div',null,'<h3>Export video</h3>');inp(b,'Format',o,'fmt','text',[...(ok.mp4?[['mp4','MP4 (H.264)']]:[]),...(ok.webm?[['webm','WebM (VP9)']]:[])]);inp(b,'Output size',o,'scale','text',[['1',`Exact canvas · ${P.w} × ${P.h}`],['4k',`4K UHD · ${fourKW} × ${fourKH}`],['2','200% of canvas'],['.75','75% of canvas'],['.5','50% of canvas']]);inp(b,'Frame rate',o,'fps','text',fpsOptions);inp(b,'Video Mbps',o,'vb');inp(b,'Audio kbps',o,'ab');
 b.append(el('p','hint',`Export always starts at 00:00 and includes the soundtrack from the beginning. 4K UHD option: ${fourKW} × ${fourKH}. You can choose up to 120 fps; actual frame delivery still depends on browser and effect-rendering performance.`));
 modal(b,[['Cancel'],['Start export',()=>runExport(o,ok[o.fmt])]])}
 function exportSourceTime(c,t,m){
