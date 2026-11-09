@@ -716,7 +716,7 @@ const cpu=b=>{try{const d=dst.getContext('2d');if(!d)throw Error('2D canvas cont
 const flush=()=>{if(!batch.length)return;const b=batch;batch=[];let ok=false;try{ok=glRun(src,b,W,H,t,dst)}catch(e){glFatal(e)}if(ok)[src,dst]=[dst,src];else for(const x of b)cpu(x)};
 for(const f of c.fx){if(f.off||!FX[f.t])continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
 flush();let o=get(c,'tr.o',lt)/100,s=get(c,'tr.s',lt)/100,r=get(c,'tr.r',lt)*rad,x=get(c,'tr.x',lt)*k,y=get(c,'tr.y',lt)*k,bl=0,fl=0;if(c.tin&&lt<c.tin.d){const m=TR[c.tin.t][1](lt/c.tin.d);o*=m.o??1;s*=m.s??1;r+=(m.r??0)*rad;x+=(m.x??0)*W;y+=(m.y??0)*W;bl=m.bl??0;fl=m.fl??0}ctx.save();ctx.globalAlpha=clamp(o,0,1);ctx.translate(W/2+x,H/2+y);ctx.rotate(r);ctx.scale(s,s);if(bl)ctx.filter=`blur(${bl*k}px)`;ctx.drawImage(src,-W/2,-H/2);ctx.restore();if(fl>0){ctx.globalAlpha=fl;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
-function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a)drawClip(ctx,c,t,W,H,k)}}
+function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a){try{drawClip(ctx,c,t,W,H,k)}catch(err){console.warn('Skipping clip render failure:',P.media[c.media]?.name||c.id,err);if(exporting?.fxWarnings)exporting.fxWarnings.add('clip '+(P.media[c.media]?.name||c.id))}}}}
 function requestVideoSeek(e,st,fps){
  const frame=Math.max(0,Math.round(st*fps)),target=frame/fps;e._cutroomDesiredTime=target;
  // Never interrupt an in-flight decode seek. The render loop draws the last
@@ -781,7 +781,7 @@ function sync(t,play,exportMode=false){
   }
   if(play){
    const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;
-   if(e.paused)e.play().catch(()=>{});
+   if(e.paused)requestMediaPlay(e);
    if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}
   }else{e.pause();requestVideoSeek(e,st,fps)}
   e._cutroomRetimeMode='normal';
@@ -935,7 +935,7 @@ async function runExport(o,mimeHint){
  if(exporting)return;ensureAC();try{await AC.resume()}catch{}
  const fps=clamp(Math.round(+o.fps||P.fps||30),1,120),scale=o.scale==='4k'?clamp(3840/Math.max(P.w,P.h),.25,6):clamp(+o.scale||1,.25,6),even=x=>Math.max(2,Math.round(x/2)*2),Wd=even(P.w*scale),H=even(P.h*scale),start=0,end=endT();
  if(end-start<.1)return toast('Nothing to export in that range.',1);
- const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas.',1);
+ FC.map.clear();FC.spare.length=0;FC.bytes=0;try{glDisposePool();GL.W=0;GL.H=0}catch{}const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas.',1);
  const oldT=T,wasPlaying=playing;playing=false;$('#bP').textContent='▶ Play';let stream=null,vt=null,rec=null,recStopped=null,chunks=[],failed=null,completed=0,skippedEffects=[];
  const mimeCandidates=[mimeHint,'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4'].filter(Boolean),chosen=mimeCandidates.find(x=>MediaRecorder.isTypeSupported(x))||'',ext=chosen.startsWith('video/mp4')?'mp4':'webm';
  exporting={cancel:false,start,end,fps,frameCount,completed,output,fxWarnings:new Set()};
@@ -954,8 +954,8 @@ async function runExport(o,mimeHint){
   rec=new MediaRecorder(stream,opt);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(250);if(manualCapture)vt.requestFrame();await audioPrime;
   const frameMs=1000/fps;completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
   for(let i=1;i<frameCount;i++){
-   if(exporting.cancel)break;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
-   render(outCtx,Wd,H,t);touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
+   if(exporting.cancel)break;if(failed)throw failed;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
+   render(outCtx,Wd,H,t);if(failed)throw failed;touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
    sync(t,true,true);
    // Decode/render time already consumes part of this frame interval. Wait
    // only for the remainder; adding a full frame delay after every seek makes
