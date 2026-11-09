@@ -2,7 +2,6 @@
 <html lang="en"><head><meta charset="utf-8"><title>Cutroom — Video Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./src/styles/mobile.css">
 <style>
 :root{--bg:#101216;--p:#181b21;--p2:#20242c;--ln:#2b303a;--tx:#d9dde5;--mu:#8590a2;--ac:#ffb347;--v:#2f6f8f;--a:#3a8c63;--t:#9a6b2f;color-scheme:dark;box-sizing:border-box;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
 *{box-sizing:inherit;margin:0}html,body{height:100%;background:var(--bg);color:var(--tx);font:13px 'IBM Plex Sans',system-ui,sans-serif;overflow:hidden}
@@ -31,7 +30,9 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 #toasts{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:99}.toast{background:#262b35;border:1px solid var(--ln);padding:8px 12px;border-radius:6px;max-width:380px}.toast.err{border-color:#c0504d}
 #mod{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}#mod>div{background:var(--p);border:1px solid var(--ln);border-radius:10px;padding:16px;width:min(480px,92vw);max-height:86vh;overflow:auto}#mod h3{margin-bottom:10px}#mod .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}progress{width:100%;accent-color:var(--ac)}
 .chead{display:flex;flex-direction:column;padding:6px 4px 8px;border-bottom:1px solid var(--ln)}.fxfolder{border:1px solid var(--ln);border-radius:7px;margin:7px 0;overflow:hidden;background:#15181e}.fxfolder summary{padding:8px 9px;cursor:pointer;color:var(--tx);font-weight:600;background:var(--p2);list-style:none}.fxfolder summary::-webkit-details-marker{display:none}.fxfolder summary:before{content:"▸";display:inline-block;margin-right:7px;color:var(--ac)}.fxfolder[open] summary:before{content:"▾"}.fxfolder .grid{padding:6px}.fxfolder .grid button{font-size:12px;padding:6px}.retime-actions{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.retime-actions button{font-size:11px}.format-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.format-tile{text-align:left;padding:10px;min-height:54px}.format-tile b{display:block}.format-tile small{color:var(--mu)}.chead small{color:var(--mu)}.fx.c .row{display:none}.row label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-</style></head><body>
+</style>
+<link rel="stylesheet" href="./src/styles/mobile.css">
+</head><body>
 <div id="app">
 <header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
 <aside id="left"><nav id="ltabs"></nav><div id="lbody"></div></aside><div class="sp" id="sl"></div>
@@ -773,8 +774,6 @@ function sync(t,play,exportMode=false){
    else{e.pause();requestVideoSeek(e,st,fps)}
    e._cutroomRetimeMode='normal';continue;
   }
-  if(!video)continue;
-  if(!video){continue}
   if(play){
    const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;
    if(e.paused)e.play().catch(()=>{});
