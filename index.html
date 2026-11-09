@@ -737,18 +737,12 @@ function sync(t,play,exportMode=false){
  for(const c of P.clips){
   const tr=trk(c.track),m=P.media[c.media];
   if(c.text||!m||m.type==='image')continue;
-  const e=elFor(c);if(!e)continue;
   const lt=t-c.start,act=lt>=0&&lt<c.dur;
+  if(!act){const idle=els[c.id];if(idle){if(!idle.paused)idle.pause();idle.muted=false;}window.CutroomEmbeddedAudio?.stop(c.id);continue;}
+  const e=elFor(c);if(!e)continue;
   const video=m.type==='video';
   const mp=mappedProgress(c,lt);
   const remapped=video&&(mp!==null||c.rev||hasPT(c));
-  if(!act){
-   if(!e.paused)e.pause();
-   e.muted=false;
-   window.CutroomEmbeddedAudio?.stop(c.id);
-   e._cutroomRetimeMode='inactive';
-   continue;
-  }
   if(AC&&!gains[c.id]){const g=AC.createGain();try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}}
   const fps=Math.max(1,m.fps||P.fps||30),span=Math.max(0,c.dur*c.speed),
    mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,
