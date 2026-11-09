@@ -26,10 +26,11 @@
     const v=Math.max(0,Math.min(1,Number(volume)||0));
     if(context.state==="running") p.gain.gain.setTargetAtTime(v,context.currentTime,.012);
     else p.gain.gain.value=v;
-    if(playing){if(a.paused) a.play().catch(()=>{});}
+    if(playing){if(a.paused&&!p.pendingPlay){const task=Promise.resolve().then(()=>a.play()).catch(()=>{}).finally(()=>{if(p.pendingPlay===task)p.pendingPlay=null});p.pendingPlay=task}}
     else if(!a.paused) a.pause();
   }
   function stop(id){const p=players.get(id);if(p&&!p.el.paused)p.el.pause()}
   function dispose(id){const p=players.get(id);if(!p)return;try{p.el.pause();p.el.removeAttribute("src");p.el.load();p.source.disconnect();p.gain.disconnect()}catch(_){}players.delete(id)}
-  window.CutroomEmbeddedAudio={sync,stop,dispose,disposeAll(){for(const id of [...players.keys()])dispose(id)}};
+  async function primeAll(){await Promise.all([...players.values()].map(p=>p.pendingPlay).filter(Boolean))}
+  window.CutroomEmbeddedAudio={sync,stop,dispose,primeAll,disposeAll(){for(const id of [...players.keys()])dispose(id)}};
 })();
