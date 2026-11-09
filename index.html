@@ -774,9 +774,12 @@ function sync(t,play,exportMode=false){
   e.muted=false;
   window.CutroomEmbeddedAudio?.stop(c.id);
   if(!video){
-   // Audio-only clips always retain their ordinary timeline playback.
+   // Audio clips must seek to their own source in-point on export start or
+   // when the playhead is moved; never inherit the previous preview position.
+   const startingNow=lt<=1.5/Math.max(1,P.fps||30),needsSync=!play||startingNow||e.paused;
+   if(needsSync&&!e.seeking&&Math.abs((Number(e.currentTime)||0)-st)>.025){e.pause();try{e.currentTime=clamp(st,0,Math.max(0,(m.dur||1e9)-.02))}catch{}}
    if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)requestMediaPlay(e);}
-   else{e.pause();requestVideoSeek(e,st,fps)}
+   else e.pause();
    e._cutroomRetimeMode='normal';continue;
   }
   if(play){
@@ -917,7 +920,7 @@ function touchExportFrame(ctx,w,h,index){
  // The 1 px marker is visually negligible at normal video resolutions.
  ctx.save();ctx.fillStyle=(index&1)?'rgb(8,8,8)':'rgb(9,9,9)';ctx.fillRect(Math.max(0,w-1),Math.max(0,h-1),1,1);ctx.restore();
 }
-async function prepareExportFrame(t){
+async function prepareExportFrame(t,force=false){
  const jobs=[];
  for(const c of P.clips){
   const tr=trk(c.track),m=P.media[c.media];
@@ -926,7 +929,7 @@ async function prepareExportFrame(t){
   const remapped=!!(c.timeMap||c.rev||hasPT(c));
   // Regular clips use native playback between samples. Retimed clips use
   // deterministic seeks so reverse and velocity remapping render the right frame.
-  if(!remapped&&e&&e.readyState>=2&&!e.seeking&&!e._cutroomSeeking&&Math.abs((Number(e.currentTime)||0)-src)<.16)continue;
+  if(!force&&!remapped&&e&&e.readyState>=2&&!e.seeking&&!e._cutroomSeeking&&Math.abs((Number(e.currentTime)||0)-src)<.16)continue;
   jobs.push(waitVideoFrameForExport(e,src,m.name));
  }
  await Promise.all(jobs);
@@ -943,7 +946,7 @@ async function runExport(o,mimeHint){
   const body=el('div',null,'<h3>Exporting…</h3><progress id="xp" max="1" value="0"></progress><p id="xt" class="hint">Preparing first frame…</p><p class="hint">Every source frame is decoded before capture. If decoding is slow, the last good frame stays visible instead of recording black.</p>');modal(body,[['Cancel export',()=>{if(exporting)exporting.cancel=true},1]]);
   // Prepare and paint frame zero BEFORE captureStream/MediaRecorder starts.
   // This avoids the common initial black-frame race in Chrome canvas capture.
-  T=start;await prepareExportFrame(start);if(exporting.cancel)throw new Error('Export cancelled.');render(outCtx,Wd,H,start);touchExportFrame(outCtx,Wd,H,0);sync(start,true,true);const audioPrime=primeExportAudio();
+  T=start;await prepareExportFrame(start,true);if(exporting.cancel)throw new Error('Export cancelled.');render(outCtx,Wd,H,start);touchExportFrame(outCtx,Wd,H,0);sync(start,true,true);const audioPrime=primeExportAudio();
   // Prefer explicit frame requests: the browser's automatic canvas sampler can
   // skip the first painted frame and introduce irregular timestamps while the
   // source video is being decoded. Fall back to the standard sampler where the
