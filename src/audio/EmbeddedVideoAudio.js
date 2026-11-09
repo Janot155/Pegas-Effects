@@ -15,12 +15,12 @@
     }
     return p;
   }
-  function sync(id,src,context,destination,time,playing,rate,volume){
+  function sync(id,src,context,destination,time,playing,rate,volume,forceSeek=false){
     if(!context || !destination || !src) return;
     const p=get(id,src,context,destination), a=p.el;
     const target=Math.max(0,Number(time)||0), speed=Math.max(.0625,Math.min(16,Number(rate)||1));
     try{
-      const seekTolerance=a.paused?.025:.12;
+      const seekTolerance=forceSeek?0.001:(a.paused?0.025:0.12);
       if(Math.abs((Number(a.currentTime)||0)-target)>seekTolerance || a.readyState===0) a.currentTime=target;
     }catch(_){}
     if(a.playbackRate!==speed) a.playbackRate=speed;
