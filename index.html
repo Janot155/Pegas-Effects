@@ -275,7 +275,7 @@ function getRT(w,h){
  throw Error('Cannot create render target '+w+'x'+h)
 }
 const relRT=r=>{if(r){r.free=true;r.lastUsed=performance.now()}};
-function trimIdleRenderTargets(){const idleLimit=GL.poolBudget*.35;while(GL.poolBytes>idleLimit){let oldest=-1,stamp=Infinity;for(let i=0;i<GL.pool.length;i++){const item=GL.pool[i];if(item.free&&(item.lastUsed||0)<stamp){oldest=i;stamp=item.lastUsed||0}}if(oldest<0)break;const victim=GL.pool[oldest];try{GL.gl.deleteFramebuffer(victim.fbo);GL.gl.deleteTexture(victim.tex)}catch{}GL.poolBytes-=victim.w*victim.h*(victim.bytesPerPixel||4);GL.pool.splice(oldest,1)}}
+function trimIdleRenderTargets(){const idleLimit=GL.poolBudget*.68;while(GL.poolBytes>idleLimit){let oldest=-1,stamp=Infinity;for(let i=0;i<GL.pool.length;i++){const item=GL.pool[i];if(item.free&&(item.lastUsed||0)<stamp){oldest=i;stamp=item.lastUsed||0}}if(oldest<0)break;const victim=GL.pool[oldest];try{GL.gl.deleteFramebuffer(victim.fbo);GL.gl.deleteTexture(victim.tex)}catch{}GL.poolBytes-=victim.w*victim.h*(victim.bytesPerPixel||4);GL.pool.splice(oldest,1)}}
 function glPass(name,ins,out,u,w,h,t){
  const gl=GL.gl,pr=glProg(name);gl.bindFramebuffer(gl.FRAMEBUFFER,out?out.fbo:null);gl.viewport(0,0,w,h);gl.useProgram(pr.p);
  for(let i=0;i<ins.length;i++){gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,ins[i])}
