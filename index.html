@@ -256,7 +256,7 @@ function glInit(){
  }catch(e){GL.ok=false;console.warn('GPU effects disabled:',e.message);glUI();return false}
 }
 function glParams(gl){gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)}
-function glFatal(e){console.error('GPU effects disabled:',e);if(GL.fatal)return;GL.fatal=true;GL.ok=false;glUI();toast('GPU effects failed ('+(e&&e.message||e)+'). Using the CPU renderer instead.',1)}
+function glFatal(e){console.error('GPU effects disabled:',e);if(GL.fatal)return;GL.fatal=true;GL.ok=false;try{glDisposePool()}catch{}glUI();toast('GPU effects failed ('+(e&&e.message||e)+'). Using the CPU renderer instead.',1)}
 const glUsable=t=>!!GLFX[t]&&GL.on&&!GL.bad.has(t)&&glInit();
 const glDiscount=t=>(GL.ok&&GL.on&&GLFX[t]&&!GL.bad.has(t))?.35:1;
 function glUI(){const b=document.getElementById('bGpu');if(!b)return;b.classList.toggle('on',GL.on&&GL.ok!==false);b.title=GL.ok===false?'GPU effects unavailable on this device — using CPU renderer':GL.on?'GPU effects on (click to switch to CPU renderer)':'GPU effects off (click to enable)'}
@@ -270,7 +270,7 @@ function getRT(w,h){
   gl.texImage2D(gl.TEXTURE_2D,0,GL.half?gl.RGBA16F:gl.RGBA8,w,h,0,gl.RGBA,GL.half?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,null);
   const fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
   if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,free:false,bytesPerPixel:GL.half?8:4,lastUsed:performance.now()};GL.pool.push(r);GL.poolBytes+=w*h*r.bytesPerPixel;return r}
-  gl.deleteFramebuffer(fbo);gl.deleteTexture(tex);if(!GL.half)break;GL.half=false;glDisposePool()
+  gl.deleteFramebuffer(fbo);gl.deleteTexture(tex);if(!GL.half)break;GL.half=false
  }
  throw Error('Cannot create render target '+w+'x'+h)
 }
@@ -938,9 +938,9 @@ async function runExport(o,mimeHint){
  if(exporting)return;ensureAC();try{await AC.resume()}catch{}
  const fps=clamp(Math.round(+o.fps||P.fps||30),1,120),scale=o.scale==='4k'?clamp(3840/Math.max(P.w,P.h),.25,6):clamp(+o.scale||1,.25,6),even=x=>Math.max(2,Math.round(x/2)*2),Wd=even(P.w*scale),H=even(P.h*scale),start=0,end=endT();
  if(end-start<.1)return toast('Nothing to export in that range.',1);
- FC.map.clear();FC.spare.length=0;FC.bytes=0;try{glDisposePool();GL.W=0;GL.H=0}catch{}const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas.',1);
+ FC.map.clear();FC.spare.length=0;FC.bytes=0;for(const id in retimeFrames)delete retimeFrames[id];try{glDisposePool();GL.W=0;GL.H=0}catch{}const maxExportPixels=(navigator.deviceMemory||4)<=4?12582912:25165824;if(Wd*H>maxExportPixels)return toast(`Export size ${Wd}×${H} is too large for this device. Choose 4K or a smaller output scale.`,1);const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas. Try a smaller output size.',1);
  const oldT=T,wasPlaying=playing;playing=false;$('#bP').textContent='▶ Play';let stream=null,vt=null,rec=null,recStopped=null,chunks=[],failed=null,completed=0,skippedEffects=[];
- const mimeCandidates=[mimeHint,'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4'].filter(Boolean),chosen=mimeCandidates.find(x=>MediaRecorder.isTypeSupported(x))||'',ext=chosen.startsWith('video/mp4')?'mp4':'webm';
+ const mimeCandidates=[mimeHint,'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4'].filter(Boolean);let chosen=mimeCandidates.find(x=>MediaRecorder.isTypeSupported(x))||'',ext='webm';
  exporting={cancel:false,start,end,fps,frameCount,completed,output,fxWarnings:new Set()};
  try{
   const body=el('div',null,'<h3>Exporting…</h3><progress id="xp" max="1" value="0"></progress><p id="xt" class="hint">Preparing first frame…</p><p class="hint">Every source frame is decoded before capture. If decoding is slow, the last good frame stays visible instead of recording black.</p>');modal(body,[['Cancel export',()=>{if(exporting)exporting.cancel=true},1]]);
@@ -954,7 +954,7 @@ async function runExport(o,mimeHint){
   stream=output.captureStream(0);vt=stream.getVideoTracks()[0];const manualCapture=typeof vt.requestFrame==='function';if(!manualCapture){stream.getTracks().forEach(x=>x.stop());stream=output.captureStream(fps);vt=stream.getVideoTracks()[0];}
   if(MD?.stream)for(const a of MD.stream.getAudioTracks())if(a.readyState==='live')stream.addTrack(a);
   const recommendedMbps=12*(Wd*H/(1920*1080))*(fps/30),videoMbps=clamp(Math.max(+o.vb||12,recommendedMbps),4,120),opt={videoBitsPerSecond:Math.round(videoMbps*1e6),audioBitsPerSecond:Math.max(32,Math.round((+o.ab||192)*1000))};if(chosen)opt.mimeType=chosen;
-  rec=new MediaRecorder(stream,opt);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(250);if(manualCapture)vt.requestFrame();await audioPrime;
+  let recorderInitError=null;const recorderTypes=[...new Set([chosen,...mimeCandidates.filter(x=>{try{return MediaRecorder.isTypeSupported(x)}catch{return false}})].filter(Boolean))],bitrateChoices=[opt.videoBitsPerSecond,Math.min(opt.videoBitsPerSecond,24000000),12000000];for(const type of recorderTypes){for(const bitrate of [...new Set(bitrateChoices)]){try{rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:bitrate,audioBitsPerSecond:opt.audioBitsPerSecond});chosen=rec.mimeType||type;break}catch(err){recorderInitError=err}}if(rec)break}if(!rec){try{rec=new MediaRecorder(stream,{videoBitsPerSecond:Math.min(opt.videoBitsPerSecond,12000000),audioBitsPerSecond:opt.audioBitsPerSecond});chosen=rec.mimeType||''}catch(err){throw new Error('The browser could not start its video encoder: '+(err?.message||recorderInitError?.message||'unsupported recording settings'))}}ext=(rec.mimeType||chosen).startsWith('video/mp4')?'mp4':'webm';rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(500);if(manualCapture)vt.requestFrame();await audioPrime;
   const frameMs=1000/fps;completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
   for(let i=1;i<frameCount;i++){
    if(exporting.cancel)break;if(failed)throw failed;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
