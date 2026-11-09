@@ -1,0 +1,27 @@
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  html,body { height:100%; min-height:100%; overflow:auto; overscroll-behavior:contain; }
+  #app {
+    height:auto; min-height:100dvh; overflow:visible;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:40px minmax(120px,22vh) minmax(210px,36vh) minmax(150px,24vh) 6px minmax(190px,34vh);
+    grid-template-areas:"top" "left" "center" "right" "hs" "tl";
+  }
+  #top { min-width:0; overflow-x:auto; white-space:nowrap; padding-inline:7px; }
+  #pname { min-width:95px; }
+  #left,#right,#tl { min-width:0; min-height:0; overflow:auto; }
+  #center { min-height:210px; }
+  #vp { padding:5px; min-height:0; }
+  #cv { max-width:100%; max-height:100%; object-fit:contain; }
+  #pbar { flex-wrap:wrap; gap:4px; padding:5px; }
+  #pbar button,#top button { min-height:32px; }
+  #right { padding:7px; }
+  #tbar { overflow-x:auto; }
+  #tscroll { overflow:auto; -webkit-overflow-scrolling:touch; }
+  .sp { display:none; }
+  .clip { min-height:30px; }
+  input,select,textarea,button { font-size:14px; }
+}
+@media (max-width: 420px) {
+  #app { grid-template-rows:40px minmax(115px,20vh) minmax(205px,34vh) minmax(145px,23vh) 6px minmax(180px,32vh); }
+  #tc { min-width:78px; font-size:11px; }
+}
