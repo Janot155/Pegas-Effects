@@ -275,6 +275,7 @@ function getRT(w,h){
  throw Error('Cannot create render target '+w+'x'+h)
 }
 const relRT=r=>{if(r){r.free=true;r.lastUsed=performance.now()}};
+function trimIdleRenderTargets(){const idleLimit=GL.poolBudget*.35;while(GL.poolBytes>idleLimit){let oldest=-1,stamp=Infinity;for(let i=0;i<GL.pool.length;i++){const item=GL.pool[i];if(item.free&&(item.lastUsed||0)<stamp){oldest=i;stamp=item.lastUsed||0}}if(oldest<0)break;const victim=GL.pool[oldest];try{GL.gl.deleteFramebuffer(victim.fbo);GL.gl.deleteTexture(victim.tex)}catch{}GL.poolBytes-=victim.w*victim.h*(victim.bytesPerPixel||4);GL.pool.splice(oldest,1)}}
 function glPass(name,ins,out,u,w,h,t){
  const gl=GL.gl,pr=glProg(name);gl.bindFramebuffer(gl.FRAMEBUFFER,out?out.fbo:null);gl.viewport(0,0,w,h);gl.useProgram(pr.p);
  for(let i=0;i<ins.length;i++){gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,ins[i])}
@@ -310,7 +311,7 @@ function glRun(srcCanvas,list,W,H,t,dst){
    }else{const out=getRT(W,H);glPass(d.f,[cur.tex],out,d.u(e.p,W,H,t),W,H,t);take(out)}
   }
   gl.disable(gl.BLEND);glPass('copy',[cur.tex],null,[],W,H,0)
- }finally{if(cur.own)relRT(cur);for(const r of GL.pool)if(r.free===false&&r!==cur)r.free=true}
+ }finally{if(cur.own)relRT(cur);for(const r of GL.pool)if(r.free===false&&r!==cur)relRT(r);trimIdleRenderTargets()}
  const d=dst.getContext('2d');d.setTransform(1,0,0,1,0,0);d.globalCompositeOperation='source-over';d.globalAlpha=1;d.filter='none';d.clearRect(0,0,W,H);d.drawImage(GL.c,0,0);
  return true
 }
