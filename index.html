@@ -767,7 +767,7 @@ function sync(t,play,exportMode=false){
    e.muted=true;
    e.pause();e._cutroomRetimeMode='retimed-video';
    if(AC)window.CutroomEmbeddedAudio?.sync(c.id,e.currentSrc||e.src,AC,master,
-      c.in+qt(c,lt)*c.speed,!!play,c.speed,gv);
+      c.in+qt(c,lt)*c.speed,!!play,c.speed,gv,!!(exportMode&&lt<=1.5/Math.max(1,P.fps||30)));
    requestVideoSeek(e,st,fps);
    continue;
   }
