@@ -20,7 +20,8 @@
     const p=get(id,src,context,destination), a=p.el;
     const target=Math.max(0,Number(time)||0), speed=Math.max(.0625,Math.min(16,Number(rate)||1));
     try{
-      if(Math.abs((Number(a.currentTime)||0)-target)>.12 || a.readyState===0) a.currentTime=target;
+      const seekTolerance=a.paused?.025:.12;
+      if(Math.abs((Number(a.currentTime)||0)-target)>seekTolerance || a.readyState===0) a.currentTime=target;
     }catch(_){}
     if(a.playbackRate!==speed) a.playbackRate=speed;
     const v=Math.max(0,Math.min(1,Number(volume)||0));
