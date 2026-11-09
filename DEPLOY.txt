@@ -1,0 +1,24 @@
+CUTROOM - VERCEL STATIC DEPLOYMENT
+
+This folder is prepared for Vercel static hosting.
+The editor entry point is index.html in the project root.
+
+FASTEST METHOD (Vercel Drop):
+1. Open https://vercel.com/drop and sign in.
+2. Upload this folder or ZIP archive.
+3. Select your Vercel team/account and enter a project name, e.g. cutroom-editor.
+4. Deploy.
+5. Open the generated https://....vercel.app URL.
+
+GITHUB METHOD:
+1. Upload all files from this folder into the ROOT of a new GitHub repository.
+2. In Vercel choose Add New -> Project, import that repository.
+3. Framework Preset: Other.
+4. Root Directory: ./
+5. Leave Build Command and Output Directory blank/default for this static HTML site.
+6. Click Deploy.
+
+NOTES:
+- index.html must remain at the root of the deployed project.
+- Cutroom uses browser storage (IndexedDB); saved projects/presets are local to the browser profile and site origin, not shared between visitors/devices.
+- The After Effects JSX exporter is included as a downloadable project file, but is not required for the web page to load.

@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Cutroom — Video Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#101216;--p:#181b21;--p2:#20242c;--ln:#2b303a;--tx:#d9dde5;--mu:#8590a2;--ac:#ffb347;--v:#2f6f8f;--a:#3a8c63;--t:#9a6b2f;color-scheme:dark;box-sizing:border-box;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+*{box-sizing:inherit;margin:0}html,body{height:100%;background:var(--bg);color:var(--tx);font:13px 'IBM Plex Sans',system-ui,sans-serif;overflow:hidden}
+#app{height:100%;display:grid;grid-template-rows:40px minmax(0,1fr) 6px var(--th,270px);grid-template-columns:var(--lw,290px) 6px minmax(0,1fr) 6px var(--rw,300px);grid-template-areas:"top top top top top" "left sl center sr right" "hs hs hs hs hs" "tl tl tl tl tl"}
+#top{grid-area:top;display:flex;gap:6px;align-items:center;padding:0 10px;background:var(--p);border-bottom:1px solid var(--ln)}
+#left{grid-area:left}#center{grid-area:center}#right{grid-area:right}#tl{grid-area:tl}
+#left,#right,#tl{background:var(--p);overflow:auto}#right{padding:8px}
+.sp{background:var(--bg);cursor:col-resize}.sp:hover{background:var(--ac)}#sl{grid-area:sl}#sr{grid-area:sr}#hs{grid-area:hs;cursor:row-resize}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--p2);border:1px solid var(--ln);border-radius:5px;padding:4px 8px}
+button{cursor:pointer}button:hover{border-color:var(--mu)}button.pri{background:var(--ac);color:#1a1200;border-color:var(--ac);font-weight:600}
+button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;accent-color:var(--ac)}input[type=color]{padding:0;height:24px;width:40px}
+.logo{font-weight:600;letter-spacing:.3px;margin-right:6px;color:var(--ac)}#pname{width:140px}#sv{color:var(--mu);font-size:11px}.gap{flex:1}
+#ltabs{display:flex;flex-wrap:wrap;gap:2px;padding:6px;position:sticky;top:0;background:var(--p);z-index:2}#ltabs button{padding:3px 7px;border:0;background:none;color:var(--mu)}#ltabs button.on{color:var(--tx);background:var(--p2)}
+#lbody{padding:6px}.item{display:flex;gap:8px;padding:5px;border-radius:6px;cursor:grab;align-items:center}.item:hover{background:var(--p2)}.item img{width:64px;height:36px;object-fit:cover;border-radius:3px;background:#000}.item small{color:var(--mu);display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}.grid button{text-align:left}.hint{color:var(--mu);padding:8px}h4{font-weight:600;margin:10px 0 6px;color:var(--mu)}
+#center{display:flex;flex-direction:column;min-height:0;background:#0b0c0f}#vp{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}
+#cv{max-width:100%;max-height:100%;background:#000;box-shadow:0 8px 30px #000a}#pbar{display:flex;gap:6px;align-items:center;padding:6px 10px;background:var(--p);border-top:1px solid var(--ln)}#tc{font-variant-numeric:tabular-nums;min-width:100px;font-weight:500}
+.row{display:flex;gap:6px;align-items:center;margin:3px 0}.row label{width:70px;color:var(--mu);flex:none}.row input[type=range]{flex:1;min-width:0}.row input[type=number]{width:62px}.row input:not([type=range]):not([type=number]):not([type=checkbox]),.row select,.row textarea{flex:1;min-width:0}
+.dia{padding:0 5px;color:var(--mu)}.dia.has{color:#e0b060}.dia.on{color:var(--ac);border-color:var(--ac)}.fx{background:var(--p2);border-radius:6px;padding:6px;margin:6px 0}.fx header{display:flex;gap:4px;align-items:center;margin-bottom:4px}.fx header b{flex:1}.fx header button{padding:0 6px}
+#tbar{display:flex;gap:5px;padding:5px 8px;align-items:center;border-bottom:1px solid var(--ln);position:sticky;left:0}#tscroll{overflow:auto;height:calc(100% - 38px);position:relative}#tl{overflow:hidden}#tlin{position:relative;min-height:100%}
+.rul{height:22px;margin-left:132px;position:sticky;top:0;z-index:4;background:var(--p2);cursor:text}.rul i{position:absolute;top:0;height:100%;border-left:1px solid var(--ln);padding-left:3px;font-size:10px;color:var(--mu);font-style:normal;pointer-events:none}
+.trow{display:flex;height:42px;border-bottom:1px solid var(--ln)}.th{position:sticky;left:0;z-index:3;width:132px;flex:none;background:var(--p);border-right:1px solid var(--ln);display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 6px}.th div{display:flex;gap:2px}.th button{padding:0 5px;font-size:10px}
+.lane{position:relative;flex:none}.clip{position:absolute;top:3px;bottom:3px;border-radius:4px;overflow:hidden;cursor:grab;font-size:11px;border:1px solid #fff2;touch-action:none}.clip.v{background:var(--v)}.clip.a{background:var(--a)}.clip.t{background:var(--t)}.clip.sel{outline:2px solid var(--ac);z-index:2}.clip.miss{background:repeating-linear-gradient(45deg,#6b2323,#6b2323 6px,#4a1818 6px,#4a1818 12px)}
+.clip b{position:absolute;left:6px;top:2px;font-weight:500;white-space:nowrap;text-shadow:0 1px 2px #000;pointer-events:none}.clip .wf{position:absolute;left:0;top:0;width:100%;height:100%;opacity:.7;pointer-events:none}.hl,.hr{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;background:#fff3;z-index:2}.hl{left:0}.hr{right:0}.kd{position:absolute;bottom:2px;width:6px;height:6px;background:var(--ac);transform:rotate(45deg);pointer-events:none}
+#ph{position:absolute;top:0;bottom:0;left:0;width:0;z-index:6;pointer-events:none}#ph:before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:2px;background:var(--ac)}#ph:after{content:"";position:absolute;left:-6px;top:0;border:6px solid transparent;border-top-color:var(--ac)}
+#toasts{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:99}.toast{background:#262b35;border:1px solid var(--ln);padding:8px 12px;border-radius:6px;max-width:380px}.toast.err{border-color:#c0504d}
+#mod{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}#mod>div{background:var(--p);border:1px solid var(--ln);border-radius:10px;padding:16px;width:min(480px,92vw);max-height:86vh;overflow:auto}#mod h3{margin-bottom:10px}#mod .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}progress{width:100%;accent-color:var(--ac)}
+.chead{display:flex;flex-direction:column;padding:6px 4px 8px;border-bottom:1px solid var(--ln)}.fxfolder{border:1px solid var(--ln);border-radius:7px;margin:7px 0;overflow:hidden;background:#15181e}.fxfolder summary{padding:8px 9px;cursor:pointer;color:var(--tx);font-weight:600;background:var(--p2);list-style:none}.fxfolder summary::-webkit-details-marker{display:none}.fxfolder summary:before{content:"▸";display:inline-block;margin-right:7px;color:var(--ac)}.fxfolder[open] summary:before{content:"▾"}.fxfolder .grid{padding:6px}.fxfolder .grid button{font-size:12px;padding:6px}.retime-actions{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.retime-actions button{font-size:11px}.format-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.format-tile{text-align:left;padding:10px;min-height:54px}.format-tile b{display:block}.format-tile small{color:var(--mu)}.chead small{color:var(--mu)}.fx.c .row{display:none}.row label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style></head><body>
+<div id="app">
+<header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
+<aside id="left"><nav id="ltabs"></nav><div id="lbody"></div></aside><div class="sp" id="sl"></div>
+<main id="center"><div id="vp"><canvas id="cv"></canvas></div><div id="pbar"><button id="bH" title="Start">⏮</button><button id="bB" title="Previous frame">◀</button><button id="bP" class="pri" title="Space">▶ Play</button><button id="bF" title="Next frame">▶▏</button><button id="bE" title="End">⏭</button><span id="tc"></span><span class="gap"></span><button id="bGpu" class="on" title="GPU effects">GPU</button><span id="fps" style="color:var(--mu)"></span><select id="zm" aria-label="Zoom"><option value="0">Fit</option><option value=".5">50%</option><option value="1">100%</option><option value="2">200%</option></select><select id="ql" aria-label="Preview quality" title="Auto lowers preview resolution and render cadence when effects become heavy. Export stays full resolution."><option value="auto" selected>Auto performance</option><option value="1">Full quality</option><option value=".75">75%</option><option value=".5">Half</option><option value=".25">Quarter</option><option value=".125">Maximum performance</option></select><button id="bFs">Fullscreen</button></div></main><div class="sp" id="sr"></div>
+<aside id="right"></aside><div class="sp" id="hs"></div>
+<section id="tl"><div id="tbar"></div><div id="tscroll"><div id="tlin"></div></div></section>
+</div><svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="fsharp" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" preserveAlpha="true"/></filter><filter id="fedge" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/></filter></svg><div id="toasts"></div><div id="mod"><div></div></div>
+<input type="file" id="fm" multiple hidden accept="video/*,image/*,audio/*,.mp4,.m4v,.mov,.webm,.avi,.png,.jpg,.jpeg,.gif,.wav,.mp3,.aac,.ffx,.json"><input type="file" id="fp" hidden accept=".json,.ffx"><input type="file" id="fj" hidden accept=".json">
+<script>
+'use strict';
+const $=(s,e=document)=>e.querySelector(s),el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),uid=()=>Math.random().toString(36).slice(2,9),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const toast=(m,err)=>{const t=el('div','toast'+(err?' err':''),esc(m));$('#toasts').append(t);setTimeout(()=>t.remove(),err?9000:2600)};
+/* ---------- storage (IndexedDB) ---------- */
+const DB=new Promise((res,rej)=>{try{const r=indexedDB.open('cutroom',2);r.onupgradeneeded=()=>{const d=r.result;['media','projects','presets','folders'].forEach(s=>{if(!d.objectStoreNames.contains(s))d.createObjectStore(s)})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});
+const idb=async(s,m,...a)=>{const d=await DB;return new Promise((res,rej)=>{const q=d.transaction(s,/^get/.test(m)?'readonly':'readwrite').objectStore(s)[m](...a);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})};
+async function save(filename,data){let d=null;try{d=await window.claude?.use('downloads')}catch{}if(d){try{await d.save({filename,data});return}catch(e){if(e&&e.code=='declined')return}}const a=el('a');a.href=URL.createObjectURL(data);a.download=filename;a.click()}
+/* ---------- keyframe engine ---------- */
+const bz=(a,b,c,d)=>x=>{let lo=0,hi=1,t=x;for(let i=0;i<22;i++){t=(lo+hi)/2;(3*(1-t)**2*t*a+3*(1-t)*t*t*c+t**3)<x?lo=t:hi=t}return 3*(1-t)**2*t*b+3*(1-t)*t*t*d+t**3};
+const EASE={linear:x=>x,hold:x=>x>=1?1:0,in:x=>x*x,out:x=>1-(1-x)**2,inout:x=>x<.5?2*x*x:1-(-2*x+2)**2/2,bezier:bz(.68,-.3,.32,1.3)};
+const val=(c,key,t,d)=>{const k=c.kf[key];if(!k||!k.length)return d;if(t<=k[0].t)return k[0].v;const L=k[k.length-1];if(t>=L.t)return L.v;let i=0;while(k[i+1]&&k[i+1].t<t)i++;const a=k[i],b=k[i+1];if(!b)return L.v;if(a.e==='hold')return a.v;const span=Math.max(1e-9,b.t-a.t),u=clamp((t-a.t)/span,0,1),ease=EASE[a.e]||EASE.linear;return a.v+(b.v-a.v)*ease(u)};
+const base=(c,key)=>{if(key=='vol')return c.vol;if(key.startsWith('tr.'))return c.tr[key.slice(3)];const[,id,k]=key.split(':');return c.fx.find(f=>f.id==id).p[k]};
+const setBase=(c,key,v)=>{if(key=='vol')c.vol=v;else if(key.startsWith('tr.'))c.tr[key.slice(3)]=v;else{const[,id,k]=key.split(':');c.fx.find(f=>f.id==id).p[k]=v}};
+const get=(c,key,t)=>val(c,key,t,base(c,key));
+const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+/* ---------- effects engine (Canvas2D, GPU-composited) ---------- */
+const cvs={},sc=(n,w,h)=>{const c=cvs[n]??=document.createElement('canvas');if(c.width!==w||c.height!==h){c.width=w;c.height=h}return c};
+const effectSamples=max=>Math.max(3,Math.round(max*(exporting?1:Math.max(.2,Q))));
+// Sharpen uses a small WebGL2 convolution shader instead of repeatedly invoking
+// an SVG filter in the 2D renderer. The GPU canvas and shader are reused.
+let sharpGPU=null;
+function gpuSharpen(src,amount){
+ try{
+  const w=src.width,h=src.height;
+  if(!sharpGPU){
+   const c=document.createElement('canvas'),gl=c.getContext('webgl2',{alpha:true,premultipliedAlpha:false,preserveDrawingBuffer:true});
+   if(!gl)return null;
+   const compile=(type,code)=>{const sh=gl.createShader(type);gl.shaderSource(sh,code);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));return sh};
+   const vs=compile(gl.VERTEX_SHADER,`#version 300 es\nin vec2 p;out vec2 uv;void main(){uv=p*.5+.5;gl_Position=vec4(p,0.,1.);}`);
+   const fs=compile(gl.FRAGMENT_SHADER,`#version 300 es\nprecision highp float;uniform sampler2D tex;uniform vec2 px;uniform float strength;in vec2 uv;out vec4 outColor;void main(){vec4 c=texture(tex,uv);vec3 n=texture(tex,uv+vec2(0.,-px.y)).rgb+texture(tex,uv+vec2(0.,px.y)).rgb+texture(tex,uv+vec2(-px.x,0.)).rgb+texture(tex,uv+vec2(px.x,0.)).rgb;vec3 sharp=c.rgb* (1.0+4.0*strength)-n*strength;outColor=vec4(clamp(sharp,0.0,1.0),c.a);}`);
+   const pr=gl.createProgram();gl.attachShader(pr,vs);gl.attachShader(pr,fs);gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(pr));
+   const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+   const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+   sharpGPU={c,gl,pr,buf,tex};
+  }
+  const {c,gl,pr,buf,tex}=sharpGPU;if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+  gl.viewport(0,0,w,h);gl.useProgram(pr);gl.bindBuffer(gl.ARRAY_BUFFER,buf);const loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);
+  gl.uniform1i(gl.getUniformLocation(pr,'tex'),0);gl.uniform2f(gl.getUniformLocation(pr,'px'),1/w,1/h);gl.uniform1f(gl.getUniformLocation(pr,'strength'),Math.min(1.5,Math.max(0,amount/100))*.25);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);return c;
+ }catch(e){return null}
+}
+let NZ;const noise=()=>{if(NZ)return NZ;NZ=el('canvas');NZ.width=NZ.height=256;const g=NZ.getContext('2d'),im=g.createImageData(256,256);for(let i=0;i<im.data.length;i+=4){im.data[i]=im.data[i+1]=im.data[i+2]=Math.random()*255;im.data[i+3]=255}g.putImageData(im,0,0);return NZ};
+function chan(s,col,w,h){const X=sc('X',w,h),x=X.getContext('2d');x.globalCompositeOperation='source-over';x.clearRect(0,0,w,h);x.drawImage(s,0,0);x.globalCompositeOperation='multiply';x.fillStyle=col;x.fillRect(0,0,w,h);x.globalCompositeOperation='destination-in';x.drawImage(s,0,0);x.globalCompositeOperation='source-over';return X}
+const rad=Math.PI/180;
+const FX={
+color:{n:'Color Correct',p:{bright:[0,-100,100],contrast:[0,-100,100],sat:[0,-100,100],exp:[0,-3,3,.05],hue:[0,-180,180],temp:[0,-100,100],tint:[0,-100,100]},f(d,s,p,w,h){d.filter=`brightness(${Math.max(0,(1+p.bright/100)*2**p.exp)}) contrast(${Math.max(0,1+p.contrast/100)}) saturate(${Math.max(0,1+p.sat/100)}) hue-rotate(${p.hue}deg)`;d.drawImage(s,0,0);d.filter='none';d.globalCompositeOperation='source-atop';for(const[v,a,b]of[[p.temp,'255,150,0','0,140,255'],[p.tint,'255,0,200','0,255,90']])if(v){d.fillStyle=`rgba(${v>0?a:b},${Math.abs(v)/100*.35})`;d.fillRect(0,0,w,h)}}},
+blur:{n:'Gaussian Blur',p:{r:[10,0,100]},f(d,s,p,w){d.filter=`blur(${p.r*w/1920}px)`;d.drawImage(s,0,0)}},
+dirblur:{n:'Directional / Motion Blur',p:{len:[60,0,400],ang:[0,0,360]},f(d,s,p,w){const n=effectSamples(14),L=p.len*w/1920,a=p.ang*rad;for(let i=0;i<n;i++){d.globalAlpha=1/(i+1);const o=(i/(n-1)-.5)*L;d.drawImage(s,Math.cos(a)*o,Math.sin(a)*o)}}},
+radblur:{n:'CC Radial Blur',p:{ang:[10,0,60]},f(d,s,p,w,h){const n=effectSamples(14);for(let i=0;i<n;i++){d.globalAlpha=1/(i+1);d.save();d.translate(w/2,h/2);d.rotate((i/(n-1)-.5)*p.ang*rad);d.drawImage(s,-w/2,-h/2);d.restore()}}},
+zoomblur:{n:'CC Radial Fast Blur',p:{amt:[20,0,100]},f(d,s,p,w,h){const n=effectSamples(14);for(let i=0;i<n;i++){d.globalAlpha=1/(i+1);const z=1+i/(n-1)*p.amt/100;d.save();d.translate(w/2,h/2);d.scale(z,z);d.drawImage(s,-w/2,-h/2);d.restore()}}},
+glow:{n:'Glow',p:{r:[24,0,100],amt:[70,0,200]},f(d,s,p,w){d.drawImage(s,0,0);d.globalCompositeOperation='lighter';d.globalAlpha=Math.min(1,p.amt/100);d.filter=`blur(${p.r*w/1920}px) brightness(${1+p.amt/200})`;d.drawImage(s,0,0)}},
+rgb:{n:'RGB Split / Chromatic Aberration',p:{off:[12,0,100],ang:[0,0,360]},f(d,s,p,w,h){const a=p.ang*rad,o=p.off*w/1920;d.globalCompositeOperation='lighter';[['#f00',1],['#0f0',0],['#00f',-1]].forEach(([c,m])=>d.drawImage(chan(s,c,w,h),Math.cos(a)*o*m,Math.sin(a)*o*m))}},
+vhs:{n:'VHS',p:{amt:[40,0,100]},f(d,s,p,w,h,t){const o=p.amt/100*10*w/1920,sl=Math.ceil(h/90);for(let y=0;y<h;y+=sl){const dx=Math.sin(y*.04+t*9)*o*(Math.sin(t*2+y*.01)>.6?3:1);d.drawImage(s,0,y,w,sl,dx,y,w,sl)}d.globalCompositeOperation='source-atop';d.fillStyle=`rgba(0,0,0,${p.amt/100*.25})`;for(let y=0;y<h;y+=4)d.fillRect(0,y,w,2)}},
+glitch:{n:'Glitch',p:{amt:[50,0,100]},f(d,s,p,w,h,t){d.drawImage(s,0,0);if(p.amt<=0)return;const r=rng(Math.floor(t*12)),n=Math.floor(p.amt/10)+1;for(let i=0;i<n;i++){const y=r()*h,hh=r()*h*.08+4,dx=(r()-.5)*w*.15*p.amt/100;d.drawImage(s,0,y,w,hh,dx,y,w,hh)}}},
+pixelate:{n:'Pixelate',p:{size:[12,1,100]},f(d,s,p,w,h){const z=Math.max(1,p.size*w/1920),Y=sc('Y',Math.ceil(w/z),Math.ceil(h/z)),y=Y.getContext('2d');y.clearRect(0,0,Y.width,Y.height);y.drawImage(s,0,0,Y.width,Y.height);d.imageSmoothingEnabled=false;d.drawImage(Y,0,0,Y.width*z,Y.height*z)}},
+grain:{n:'Film Grain / Noise',p:{amt:[30,0,100]},f(d,s,p,w,h,t){d.drawImage(s,0,0);const r=rng(Math.floor(t*24));d.globalCompositeOperation='overlay';d.globalAlpha=p.amt/100;d.fillStyle=d.createPattern(noise(),'repeat');d.translate(-r()*256,-r()*256);d.fillRect(0,0,w+256,h+256)}},
+vignette:{n:'Vignette',p:{amt:[60,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);const g=d.createRadialGradient(w/2,h/2,Math.min(w,h)*.3,w/2,h/2,Math.hypot(w,h)/2);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(0,0,0,${p.amt/100})`);d.globalCompositeOperation='source-atop';d.fillStyle=g;d.fillRect(0,0,w,h)}},
+wave:{n:'Wave Warp',p:{amp:[20,0,200],len:[80,10,400],spd:[3,-20,20]},f(d,s,p,w,h,t){const k=w/1920,step=Math.max(4,Math.round(4/(exporting?1:Math.max(.2,Q))));for(let y=0;y<h;y+=step)d.drawImage(s,0,y,w,Math.min(step,h-y),Math.sin(y/(p.len*k)+t*p.spd)*p.amp*k,y,w,Math.min(step,h-y))}},
+shake:{n:'Shake',p:{amt:[20,0,200],freq:[6,.1,30],rot:[1,0,10]},f(d,s,p,w,h,t){const k=w/1920,n=q=>Math.sin(t*p.freq*6.283+q)*.6+Math.sin(t*p.freq*2.7*6.283+q*3)*.4,z=1+p.amt*2.5*k/w;d.translate(w/2+n(1)*p.amt*k,h/2+n(5)*p.amt*k);d.rotate(n(9)*p.rot*rad);d.scale(z,z);d.drawImage(s,-w/2,-h/2)}},
+green:{n:'Green Screen / Color Key',p:{thr:[30,0,100],soft:[20,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);const im=d.getImageData(0,0,w,h),a=im.data,T0=p.thr*2.55,S=Math.max(1,p.soft*2.55);for(let i=0;i<a.length;i+=4){const g=a[i+1]-Math.max(a[i],a[i+2]);if(g>0){a[i+3]*=Math.min(1,Math.max(0,1-(g-T0)/S));a[i+1]-=g*.8}}d.putImageData(im,0,0)}},
+shadow:{n:'Drop Shadow',p:{x:[10,-200,200],y:[10,-200,200],b:[12,0,100],op:[70,0,100]},f(d,s,p,w){const k=w/1920;d.filter=`drop-shadow(${p.x*k}px ${p.y*k}px ${p.b*k}px rgba(0,0,0,${p.op/100}))`;d.drawImage(s,0,0)}}};
+Object.assign(FX,{
+sharpen:{n:'Sharpen (GPU)',p:{amt:[100,0,200]},f(d,s,p){if(p.amt<=0){d.drawImage(s,0,0);return}const g=gpuSharpen(s,p.amt);if(g)d.drawImage(g,0,0);else{d.drawImage(s,0,0);d.globalAlpha=Math.min(.8,p.amt/125);d.filter='url(#fsharp)';d.drawImage(s,0,0);d.filter='none'}}},
+edge:{n:'Edge Detect',p:{amt:[100,0,100],inv:[0,0,1]},f(d,s,p,w,h){d.drawImage(s,0,0);d.globalAlpha=p.amt/100;d.globalCompositeOperation='source-over';d.filter='url(#fedge) brightness(1.8)'+(p.inv?' invert(1)':'');d.drawImage(s,0,0)}},
+invert:{n:'Invert',p:{amt:[100,0,100]},f(d,s,p){d.filter=`invert(${p.amt}%)`;d.drawImage(s,0,0)}},
+ptime:{n:'Posterize Time',p:{fps:[8,1,60]},f(d,s){d.drawImage(s,0,0)}},
+ccsweep:{n:'CC Light Sweep',p:{pos:[50,-50,150],width:[25,1,100],ang:[30,0,360],amt:[80,0,200]},f(d,s,p,w,h){d.drawImage(s,0,0);const X=sc('X',w,h),x=X.getContext('2d'),a=p.ang*rad,L=Math.hypot(w,h),nx=Math.cos(a),ny=Math.sin(a),cx=w/2+nx*(p.pos-50)/100*L,cy=h/2+ny*(p.pos-50)/100*L,hw=p.width/100*L/2;x.globalCompositeOperation='source-over';x.clearRect(0,0,w,h);const g=x.createLinearGradient(cx-nx*hw,cy-ny*hw,cx+nx*hw,cy+ny*hw);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.5,`rgba(255,255,255,${Math.min(1,p.amt/100)})`);g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,w,h);x.globalCompositeOperation='destination-in';x.drawImage(s,0,0);x.globalCompositeOperation='source-over';d.globalCompositeOperation='lighter';d.drawImage(X,0,0)}},
+ccrays:{n:'CC Light Rays',p:{x:[50,0,100],y:[40,0,100],len:[40,0,100],amt:[60,0,200]},f(d,s,p,w,h){d.drawImage(s,0,0);const n=effectSamples(18),X=sc('X',w,h),x=X.getContext('2d');x.globalCompositeOperation='source-over';x.clearRect(0,0,w,h);x.filter='brightness(1.3) contrast(1.8)';x.drawImage(s,0,0);x.filter='none';const ox=p.x/100*w,oy=p.y/100*h;d.globalCompositeOperation='lighter';for(let i=1;i<=n;i++){const z=1+i/n*p.len/100;d.globalAlpha=Math.min(1,p.amt/100/n*(1-i/n*.7)*2);d.save();d.translate(ox,oy);d.scale(z,z);d.translate(-ox,-oy);d.drawImage(X,0,0);d.restore()}}},
+cctoner:{n:'CC Toner',p:{shadow:[210,0,360],high:[35,0,360],amt:[80,0,100]},f(d,s,p,w,h){const X=sc('X',w,h),x=X.getContext('2d');x.globalCompositeOperation='source-over';x.clearRect(0,0,w,h);x.filter='grayscale(1) contrast(1.1)';x.drawImage(s,0,0);x.filter='none';x.globalCompositeOperation='multiply';x.fillStyle=`hsl(${p.high},85%,72%)`;x.fillRect(0,0,w,h);x.globalCompositeOperation='screen';x.fillStyle=`hsl(${p.shadow},80%,18%)`;x.fillRect(0,0,w,h);x.globalCompositeOperation='destination-in';x.drawImage(s,0,0);x.globalCompositeOperation='source-over';d.drawImage(s,0,0);d.globalAlpha=p.amt/100;d.drawImage(X,0,0)}},
+cckal:{n:'CC Kaleida',p:{n:[6,2,16],rot:[0,-360,360],zoom:[100,25,300],cx:[50,0,100],cy:[50,0,100]},f(d,s,p,w,h){const n=Math.round(p.n),R=Math.hypot(w,h),ox=p.cx/100*w,oy=p.cy/100*h,z=p.zoom/100;for(let i=0;i<n;i++){d.save();d.translate(w/2,h/2);d.rotate(i*2*Math.PI/n);d.beginPath();d.moveTo(0,0);d.arc(0,0,R,-Math.PI/n,Math.PI/n);d.closePath();d.clip();if(i%2)d.scale(1,-1);d.rotate(p.rot*rad);d.scale(z,z);d.translate(-ox,-oy);d.drawImage(s,0,0);d.restore()}}},
+cclens:{n:'CC Lens',p:{x:[50,0,100],y:[50,0,100],size:[25,1,100],mag:[1.8,.5,4,.05]},f(d,s,p,w,h){d.drawImage(s,0,0);const cx=p.x/100*w,cy=p.y/100*h,r=p.size/100*Math.min(w,h);d.save();d.beginPath();d.arc(cx,cy,r,0,6.2832);d.clip();d.translate(cx,cy);d.scale(p.mag,p.mag);d.translate(-cx,-cy);d.drawImage(s,0,0);d.restore();d.lineWidth=3*w/1920;d.strokeStyle='rgba(255,255,255,.5)';d.beginPath();d.arc(cx,cy,r,0,6.2832);d.stroke()}},
+ccrep:{n:'CC Repetile',p:{tiles:[3,1,10],mirror:[0,0,1]},f(d,s,p,w,h){const n=Math.round(p.tiles),m=p.mirror;for(let i=0;i<n;i++)for(let j=0;j<n;j++){const fx=m&&i%2,fy=m&&j%2;d.save();d.translate(i*w/n+(fx?w/n:0),j*h/n+(fy?h/n:0));d.scale((fx?-1:1)/n,(fy?-1:1)/n);d.drawImage(s,0,0);d.restore()}}},
+ccmirror:{n:'CC Mirror',p:{pos:[50,0,100]},f(d,s,p,w,h){const x=p.pos/100*w;d.save();d.beginPath();d.rect(0,0,x,h);d.clip();d.drawImage(s,0,0);d.restore();d.save();d.beginPath();d.rect(x,0,w-x,h);d.clip();d.translate(2*x,0);d.scale(-1,1);d.drawImage(s,0,0);d.restore()}},
+monochrome:{n:'Monochrome',p:{amt:[100,0,100]},f(d,s,p){d.drawImage(s,0,0);d.globalAlpha=p.amt/100;d.filter='grayscale(1)';d.drawImage(s,0,0);d.filter='none'}},
+sepia:{n:'Sepia Tone',p:{amt:[55,0,100]},f(d,s,p){d.drawImage(s,0,0);d.globalAlpha=p.amt/100;d.filter='sepia(1)';d.drawImage(s,0,0);d.filter='none'}},
+hueshift:{n:'Hue Shift',p:{hue:[25,-180,180],sat:[115,0,250],bright:[100,0,200]},f(d,s,p){d.filter=`hue-rotate(${p.hue}deg) saturate(${p.sat}%) brightness(${p.bright}%)`;d.drawImage(s,0,0);d.filter='none'}},
+filmfade:{n:'Film Fade',p:{fade:[28,0,100],warm:[8,-50,50]},f(d,s,p,w,h){d.drawImage(s,0,0);d.globalAlpha=p.fade/100;d.filter=`contrast(${100-p.fade*.35}%) brightness(${100+p.fade*.18}%) saturate(${100-p.fade*.4}%)`;d.drawImage(s,0,0);d.filter='none';if(p.warm){d.globalCompositeOperation='soft-light';d.fillStyle=p.warm>0?`rgba(255,170,90,${Math.abs(p.warm)/250})`:`rgba(80,150,255,${Math.abs(p.warm)/250})`;d.fillRect(0,0,w,h)}}},
+flash:{n:'White Flash',p:{amt:[0,0,100],color:[0,0,1]},f(d,s,p,w,h){d.drawImage(s,0,0);if(p.amt>0){d.globalCompositeOperation='screen';d.globalAlpha=p.amt/100;d.fillStyle=p.color?'#ffe8b5':'#fff';d.fillRect(0,0,w,h)}}},
+letterbox:{n:'Cinematic Letterbox',p:{size:[10,0,30],op:[100,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);const z=h*p.size/100;d.globalAlpha=p.op/100;d.fillStyle='#000';d.fillRect(0,0,w,z);d.fillRect(0,h-z,w,z)}},
+softfocus:{n:'Soft Focus',p:{r:[8,0,50],amt:[35,0,100]},f(d,s,p,w){d.drawImage(s,0,0);if(p.r>0&&p.amt>0){d.globalAlpha=p.amt/100;d.filter=`blur(${p.r*w/1920}px)`;d.drawImage(s,0,0);d.filter='none'}}},
+mirror:{n:'Mirror Flip',p:{axis:[0,0,1],amt:[100,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);if(p.amt<=0)return;d.save();d.globalAlpha=p.amt/100;d.translate(p.axis?w:0,p.axis?0:h);d.scale(p.axis?1:-1,p.axis?-1:1);d.drawImage(s,0,0);d.restore()}},
+scanlines:{n:'CRT Scanlines',p:{amt:[24,0,100],spacing:[4,2,16]},f(d,s,p,w,h){d.drawImage(s,0,0);if(!p.amt)return;d.save();d.globalCompositeOperation='multiply';d.globalAlpha=p.amt/100;d.fillStyle='#777';const step=Math.max(2,Math.round(p.spacing*w/1920));for(let y=0;y<h;y+=step)d.fillRect(0,y,w,Math.max(1,Math.round(step*.35)));d.restore()}},
+lensflare:{n:'Cinematic Lens Flare',p:{x:[50,0,100],y:[42,0,100],size:[45,5,120],amt:[55,0,150]},f(d,s,p,w,h){d.drawImage(s,0,0);if(!p.amt)return;const x=p.x/100*w,y=p.y/100*h,r=p.size/100*Math.min(w,h);d.save();d.globalCompositeOperation='screen';const g=d.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(255,244,210,${Math.min(1,p.amt/100)})`);g.addColorStop(.18,`rgba(120,190,255,${Math.min(.55,p.amt/240)})`);g.addColorStop(1,'rgba(100,160,255,0)');d.fillStyle=g;d.fillRect(0,0,w,h);d.globalAlpha=Math.min(.8,p.amt/180);d.fillStyle='rgba(255,245,220,.8)';d.fillRect(0,y-h*.002,w,h*.004);d.restore()}},
+colorwash:{n:'Color Wash',p:{hue:[210,0,360],amt:[22,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);if(!p.amt)return;d.save();d.globalCompositeOperation='soft-light';d.globalAlpha=p.amt/100;d.fillStyle=`hsl(${p.hue},80%,55%)`;d.fillRect(0,0,w,h);d.restore()}},
+ghost:{n:'Ghost Trail',p:{len:[18,0,120],ang:[0,0,360],amt:[28,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);if(!p.amt||!p.len)return;const a=p.ang*rad,L=p.len*w/1920,n=3;d.save();d.globalCompositeOperation='screen';for(let i=n;i>=1;i--){d.globalAlpha=p.amt/100/(i+1);d.drawImage(s,Math.cos(a)*L*i/n,Math.sin(a)*L*i/n)}d.restore()}},
+softvignette:{n:'Soft Vignette',p:{amt:[42,0,100],size:[68,0,100],soft:[75,0,100]},f(d,s,p,w,h){d.drawImage(s,0,0);if(!p.amt)return;const g=d.createRadialGradient(w/2,h/2,Math.min(w,h)*p.size/100/2,w/2,h/2,Math.hypot(w,h)*(0.45+p.soft/200));g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(0,0,0,${p.amt/100})`);d.save();d.globalCompositeOperation='multiply';d.fillStyle=g;d.fillRect(0,0,w,h);d.restore()}}});
+const hasPT=c=>c.fx.some(f=>f.t=='ptime'&&!f.off),qt=(c,lt)=>{const f=c.fx.find(x=>x.t=='ptime'&&!x.off);if(!f)return lt;const r=Math.max(1,get(c,`fx:${f.id}:fps`,lt));return Math.floor(lt*r)/r};
+/* ---------- extra effects: quality / tone / light ---------- */
+const toneCurvePx=(r,g,b,p)=>{const l=.2126*r+.7152*g+.0722*b,sm=(a,c,x)=>{x=Math.min(1,Math.max(0,(x-a)/(c-a)));return x*x*(3-2*x)},ws=1-sm(0,.5,l),wh=sm(.5,1,l),wm=1-ws-wh,k=(p.shadows*ws+p.mids*wm+p.highs*wh)/100*.25,c=p.contrast/100,f=v=>{v=Math.min(1,Math.max(0,v+k));return Math.min(1,Math.max(0,v+(v*v*(3-2*v)-v)*c))};return[f(r),f(g),f(b)]};
+Object.assign(FX,{
+denoise:{n:'Denoise',p:{amt:[40,0,100],detail:[50,0,100]},f(d,s,p,w){d.globalAlpha=1;d.drawImage(s,0,0);d.globalAlpha=Math.min(1,p.amt/100)*(1-p.detail/200);d.filter=`blur(${Math.max(.5,1.4*w/1920)}px)`;d.drawImage(s,0,0);d.filter='none';d.globalAlpha=1}},
+unsharp:{n:'Unsharp Mask',p:{amt:[100,0,500],r:[2,.1,40,.1],thr:[0,0,100]},f(d,s,p,w,h){FX.sharpen.f(d,s,{amt:Math.min(200,p.amt*.8)},w,h)}},
+levels:{n:'Levels',p:{inb:[0,0,254],inw:[255,1,255],gamma:[1,.1,4,.01],outb:[0,0,255],outw:[255,0,255]},f(d,s,p,w,h){d.drawImage(s,0,0);const im=d.getImageData(0,0,w,h),a=im.data,lut=new Uint8Array(256),ib=p.inb/255,iw=p.inw/255;for(let i=0;i<256;i++){let r=Math.min(1,Math.max(0,(i/255-ib)/Math.max(.001,iw-ib)));r=Math.pow(r,1/Math.max(.01,p.gamma));lut[i]=Math.round(p.outb+(p.outw-p.outb)*r)}for(let i=0;i<a.length;i+=4){a[i]=lut[a[i]];a[i+1]=lut[a[i+1]];a[i+2]=lut[a[i+2]]}d.putImageData(im,0,0)}},
+tonecurve:{n:'Tone Curve',p:{shadows:[0,-100,100],mids:[0,-100,100],highs:[0,-100,100],contrast:[0,-100,100]},f(d,s,p,w,h){d.drawImage(s,0,0);const im=d.getImageData(0,0,w,h),a=im.data;for(let i=0;i<a.length;i+=4){const o=toneCurvePx(a[i]/255,a[i+1]/255,a[i+2]/255,p);a[i]=o[0]*255;a[i+1]=o[1]*255;a[i+2]=o[2]*255}d.putImageData(im,0,0)}},
+vibrance:{n:'Vibrance',p:{amt:[40,-100,100]},f(d,s,p){d.filter=`saturate(${Math.max(0,1+p.amt/100*.6)})`;d.drawImage(s,0,0);d.filter='none'}},
+enhance:{n:'Enhance (Topaz-style)',p:{denoise:[30,0,100],sharp:[70,0,300],detail:[35,0,300]},f(d,s,p,w,h){const E=sc('E',w,h),e=E.getContext('2d');e.setTransform(1,0,0,1,0,0);e.globalCompositeOperation='source-over';e.globalAlpha=1;e.filter='none';e.clearRect(0,0,w,h);FX.denoise.f(e,s,{amt:p.denoise,detail:50},w,h);e.globalAlpha=1;e.filter='none';FX.sharpen.f(d,E,{amt:Math.min(200,p.sharp*.8+p.detail*.4)},w,h)}},
+lightleak:{n:'Light Leak',p:{pos:[30,-50,150],size:[60,5,150],amt:[60,0,150],hue:[20,0,360],drift:[30,0,100]},f(d,s,p,w,h,t){d.drawImage(s,0,0);if(p.amt<=0)return;const x=(p.pos/100+Math.sin(t*.7)*p.drift/200)*w,r=p.size/100*Math.max(w,h),a=Math.min(1,p.amt/100);d.save();d.globalCompositeOperation='screen';const g=d.createRadialGradient(x,h*.35,0,x,h*.35,r);g.addColorStop(0,`hsla(${p.hue+20},100%,60%,${a})`);g.addColorStop(.5,`hsla(${p.hue},100%,50%,${a*.45})`);g.addColorStop(1,`hsla(${p.hue-20},100%,45%,0)`);d.fillStyle=g;d.fillRect(0,0,w,h);d.restore()}},
+bloom:{n:'Bloom',p:{thr:[70,0,100],r:[30,0,100],amt:[70,0,200]},f(d,s,p,w,h){d.drawImage(s,0,0);if(p.amt<=0)return;const X=sc('X',w,h),x=X.getContext('2d');x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.globalAlpha=1;x.clearRect(0,0,w,h);x.filter=`brightness(${(1.4-p.thr/100*.6).toFixed(2)}) contrast(${(1.5+p.thr/100*3).toFixed(2)}) blur(${p.r*w/1920}px)`;x.drawImage(s,0,0);x.filter='none';d.save();d.globalCompositeOperation='lighter';d.globalAlpha=Math.min(1,p.amt/100);d.drawImage(X,0,0);d.restore()}},
+tiltshift:{n:'Tilt-Shift',p:{pos:[50,0,100],size:[25,1,60],r:[10,0,60]},f(d,s,p,w,h){d.filter=`blur(${p.r*w/1920}px)`;d.drawImage(s,0,0);d.filter='none';const X=sc('X',w,h),x=X.getContext('2d');x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.globalAlpha=1;x.filter='none';x.clearRect(0,0,w,h);x.drawImage(s,0,0);const c=p.pos/100*h,hs=p.size/100*h,g=x.createLinearGradient(0,c-hs*2,0,c+hs*2);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.3,'rgba(0,0,0,1)');g.addColorStop(.7,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');x.globalCompositeOperation='destination-in';x.fillStyle=g;x.fillRect(0,0,w,h);d.drawImage(X,0,0)}}
+});
+/* ---------- WebGL2 effect pipeline + preview frame cache ---------- */
+// GPU-capable effects are batched: the clip frame is uploaded once, every consecutive
+// GPU effect runs as shader passes on ping-pong render targets (half-float when the
+// driver allows it), and the result is read back into the 2D pipeline with ONE drawImage.
+// Anything that fails to compile, or any runtime GL error, falls back to the original
+// Canvas2D implementation, so no effect is ever lost.
+const GL={ok:null,on:true,bad:new Set(),progs:{},pool:[],W:0,H:0,half:false,passes:0,runs:0,fatal:false};
+const GLV=`#version 300 es
+layout(location=0) in vec2 a;out vec2 uv;void main(){uv=a*.5+.5;gl_Position=vec4(a,0.,1.);}`;
+const GLH=`#version 300 es
+precision highp float;uniform sampler2D tex;uniform sampler2D tex2;uniform vec2 res;uniform float u[8];uniform float t;in vec2 uv;out vec4 o;
+const vec3 LUM=vec3(.2126,.7152,.0722);
+vec4 S(vec2 p){return texture(tex,p);}
+vec3 unp(vec4 c){return c.a>.0005?clamp(c.rgb/c.a,0.,1.):vec3(0.);}
+vec4 pre(vec3 c,float a){return vec4(c*a,a);}
+vec2 pix(vec2 p){return vec2(p.x*res.x,(1.-p.y)*res.y);}
+vec2 unpix(vec2 q){return vec2(q.x/res.x,1.-q.y/res.y);}
+float hash(vec2 p){p=fract(p*vec2(443.897,441.423));p+=dot(p,p.yx+19.19);return fract((p.x+p.y)*p.x);}
+vec3 hue(vec3 r,float a){float c=cos(a),s=sin(a);return vec3(dot(r,vec3(.213+c*.787-s*.213,.715-c*.715-s*.715,.072-c*.072+s*.928)),dot(r,vec3(.213-c*.213+s*.143,.715+c*.285+s*.140,.072-c*.072-s*.283)),dot(r,vec3(.213-c*.213-s*.787,.715-c*.715+s*.715,.072+c*.928+s*.072)));}
+vec3 satur(vec3 r,float s){return mix(vec3(dot(r,vec3(.213,.715,.072))),r,s);}
+`;
+const GLS={
+copy:`void main(){o=S(uv);}`,
+gauss:`void main(){vec2 d=vec2(u[0],u[1])/res;float sg=max(u[2],.01);float R=ceil(3.*sg);vec4 a=vec4(0.);float ws=0.;for(int i=-16;i<=16;i++){float fi=float(i);if(abs(fi)>R)continue;float w=exp(-fi*fi/(2.*sg*sg));a+=S(uv+d*fi)*w;ws+=w;}o=a/ws;}`,
+glow:`void main(){vec4 s=S(uv),b=texture(tex2,uv);o=vec4(min(vec3(1.),s.rgb+b.rgb*u[0]*u[1]),min(1.,s.a+b.a*u[1]));o.rgb=min(o.rgb,vec3(o.a));}`,
+soft:`void main(){vec4 s=S(uv),b=texture(tex2,uv);o=b*u[0]+s*(1.-b.a*u[0]);}`,
+color:`void main(){vec4 c=S(uv);vec3 r=unp(c);r=clamp(r*max(0.,(1.+u[0]/100.)*pow(2.,u[3])),0.,1.);r=clamp((r-.5)*max(0.,1.+u[1]/100.)+.5,0.,1.);r=clamp(satur(r,max(0.,1.+u[2]/100.)),0.,1.);r=clamp(hue(r,u[4]*.0174533),0.,1.);r=mix(r,u[5]>0.?vec3(1.,.588,0.):vec3(0.,.549,1.),abs(u[5])/100.*.35);r=mix(r,u[6]>0.?vec3(1.,0.,.784):vec3(0.,1.,.353),abs(u[6])/100.*.35);o=pre(r,c.a);}`,
+dirblur:`void main(){vec2 d=vec2(cos(u[1]),-sin(u[1]))/res*u[0];vec4 a=vec4(0.);for(int i=0;i<32;i++){a+=S(uv+d*(float(i)/31.-.5));}o=a/32.;}`,
+radblur:`void main(){vec2 c=res*.5,q=pix(uv)-c;vec4 a=vec4(0.);for(int i=0;i<24;i++){float f=(float(i)/23.-.5)*u[0],cs=cos(f),sn=sin(f);a+=S(unpix(vec2(q.x*cs-q.y*sn,q.x*sn+q.y*cs)+c));}o=a/24.;}`,
+zoomblur:`void main(){vec2 c=res*.5,q=pix(uv)-c;vec4 a=vec4(0.);for(int i=0;i<24;i++){a+=S(unpix(q/(1.+float(i)/23.*u[0])+c));}o=a/24.;}`,
+rgb:`void main(){vec2 d=vec2(cos(u[1]),-sin(u[1]))*u[0]/res;vec4 a=S(uv-d),b=S(uv),c=S(uv+d);o=vec4(a.r,b.g,c.b,min(1.,max(a.a,max(b.a,c.a))));}`,
+pixelate:`void main(){float z=max(1.,u[0]);vec2 q=floor(pix(uv)/z)*z;o=(S(unpix(q+z*.25))+S(unpix(q+z*.75))+S(unpix(q+vec2(z*.25,z*.75)))+S(unpix(q+vec2(z*.75,z*.25))))*.25;}`,
+grain:`void main(){vec4 c=S(uv);vec3 b=unp(c);float n=hash(floor(pix(uv))+vec2(u[1]*17.13,u[1]*3.71));vec3 nn=vec3(n);vec3 ov=mix(2.*b*nn,1.-2.*(1.-b)*(1.-nn),step(.5,b));o=pre(mix(b,ov,u[0]),c.a);}`,
+vignette:`void main(){vec4 c=S(uv);float d=length(pix(uv)-res*.5);float a=u[0]*clamp((d-u[1])/max(1.,u[2]-u[1]),0.,1.);o=vec4(c.rgb*(1.-a),c.a);}`,
+sharpen:`void main(){vec2 px=1./res;vec4 c=S(uv);vec3 n=S(uv+vec2(0.,-px.y)).rgb+S(uv+vec2(0.,px.y)).rgb+S(uv+vec2(-px.x,0.)).rgb+S(uv+vec2(px.x,0.)).rgb;o=vec4(clamp(c.rgb*(1.+4.*u[0])-n*u[0],0.,c.a),c.a);}`,
+invert:`void main(){vec4 c=S(uv);vec3 b=unp(c);o=pre(mix(b,1.-b,u[0]),c.a);}`,
+mono:`void main(){vec4 c=S(uv);vec3 b=unp(c);o=pre(mix(b,vec3(dot(b,LUM)),u[0]),c.a);}`,
+sepia:`void main(){vec4 c=S(uv);vec3 b=unp(c);vec3 s=clamp(vec3(dot(b,vec3(.393,.769,.189)),dot(b,vec3(.349,.686,.168)),dot(b,vec3(.272,.534,.131))),0.,1.);o=pre(mix(b,s,u[0]),c.a);}`,
+hueshift:`void main(){vec4 c=S(uv);vec3 r=hue(unp(c),u[0]);r=clamp(satur(r,u[1]),0.,1.);r=clamp(r*u[2],0.,1.);o=pre(r,c.a);}`,
+scan:`void main(){vec4 c=S(uv);float y=floor(pix(uv).y);float on=mod(y,u[1])<u[2]?1.:0.;o=vec4(c.rgb*(1.-u[0]*.533*on),c.a);}`,
+wave:`void main(){vec2 p=pix(uv);float yq=floor(p.y/u[3])*u[3];float x=p.x-sin(yq/u[1]+t*u[2])*u[0];o=(x<0.||x>res.x)?vec4(0.):S(unpix(vec2(x,p.y)));}`,
+green:`void main(){vec4 c=S(uv);vec3 b=unp(c);float g=b.g-max(b.r,b.b),a=c.a;if(g>0.){a*=clamp(1.-(g-u[0])/u[1],0.,1.);b.g-=g*.8;}o=pre(b,a);}`
+};
+Object.assign(GLS,{
+denoise:`void main(){vec4 c=S(uv);vec3 cc=unp(c);float rs=mix(.03,.28,u[0]);vec2 px=u[1]/res;vec3 acc=vec3(0.);float ws=0.;for(int j=-2;j<=2;j++)for(int i=-2;i<=2;i++){vec3 s=unp(S(uv+vec2(float(i),float(j))*px));vec3 dd=s-cc;float w=exp(-float(i*i+j*j)/4.5)*exp(-dot(dd,dd)/(2.*rs*rs));acc+=s*w;ws+=w;}o=pre(mix(cc,acc/ws,u[2]),c.a);}`,
+unsharp:`void main(){vec4 s=S(uv),b=texture(tex2,uv);vec3 d=s.rgb-b.rgb;float m=u[1]<=0.?1.:smoothstep(u[1],u[1]+.03,abs(dot(d,LUM)));o=vec4(clamp(s.rgb+d*u[0]*m,0.,s.a),s.a);}`,
+levels:`void main(){vec4 c=S(uv);vec3 r=unp(c);r=clamp((r-u[0])/max(.001,u[1]-u[0]),0.,1.);r=pow(r,vec3(1./max(.01,u[2])));r=mix(vec3(u[3]),vec3(u[4]),r);o=pre(r,c.a);}`,
+tonecurve:`void main(){vec4 c=S(uv);vec3 r=unp(c);float l=dot(r,LUM),ws=1.-smoothstep(0.,.5,l),wh=smoothstep(.5,1.,l),wm=1.-ws-wh;r=clamp(r+(u[0]*ws+u[1]*wm+u[2]*wh)*.25,0.,1.);r=clamp(r+(r*r*(3.-2.*r)-r)*u[3],0.,1.);o=pre(r,c.a);}`,
+vibrance:`void main(){vec4 c=S(uv);vec3 r=unp(c);float s=max(r.r,max(r.g,r.b))-min(r.r,min(r.g,r.b));r=clamp(mix(vec3(dot(r,vec3(.213,.715,.072))),r,1.+u[0]*(1.-s)),0.,1.);o=pre(r,c.a);}`
+});
+// Effect -> shader mapping. u(p,W,H,t) packs parameters (already in preview pixels).
+const GLFX={
+ color:{f:'color',u:p=>[p.bright,p.contrast,p.sat,p.exp,p.hue,p.temp,p.tint]},
+ dirblur:{f:'dirblur',u:(p,W)=>[p.len*W/1920,p.ang*rad]},
+ radblur:{f:'radblur',u:p=>[p.ang*rad]},
+ zoomblur:{f:'zoomblur',u:p=>[p.amt/100]},
+ rgb:{f:'rgb',u:(p,W)=>[p.off*W/1920,p.ang*rad]},
+ pixelate:{f:'pixelate',u:(p,W)=>[Math.max(1,p.size*W/1920)]},
+ grain:{f:'grain',u:(p,W,H,t)=>[p.amt/100,Math.floor(t*24)%1000]},
+ vignette:{f:'vignette',u:(p,W,H)=>[p.amt/100,Math.min(W,H)*.3,Math.hypot(W,H)/2]},
+ softvignette:{f:'vignette',u:(p,W,H)=>[p.amt/100,Math.min(W,H)*p.size/200,Math.hypot(W,H)*(.45+p.soft/200)]},
+ sharpen:{f:'sharpen',u:p=>[Math.min(1.5,Math.max(0,p.amt/100))*.25]},
+ invert:{f:'invert',u:p=>[p.amt/100]},
+ monochrome:{f:'mono',u:p=>[p.amt/100]},
+ sepia:{f:'sepia',u:p=>[p.amt/100]},
+ hueshift:{f:'hueshift',u:p=>[p.hue*rad,p.sat/100,p.bright/100]},
+ scanlines:{f:'scan',u:(p,W)=>{const s=Math.max(2,Math.round(p.spacing*W/1920));return[p.amt/100,s,Math.max(1,Math.round(s*.35))]}},
+ wave:{f:'wave',u:(p,W)=>{const k=W/1920;return[p.amp*k,Math.max(1,p.len*k),p.spd,Math.max(1,Math.round(4*k))]}},
+ green:{f:'green',u:p=>[p.thr/100,Math.max(1/255,p.soft/100)]},
+ blur:{blur:p=>p.r,comb:'copy'},
+ glow:{blur:p=>p.r,comb:'glow',u:p=>[1+p.amt/200,Math.min(1,p.amt/100)]},
+ softfocus:{blur:p=>p.r,comb:'soft',u:p=>[p.amt/100]}
+};
+Object.assign(GLFX,{
+ denoise:{f:'denoise',u:(p,W)=>[p.amt/100,Math.max(1,W/1920),1-p.detail/200]},
+ unsharp:{blur:p=>p.r,comb:'unsharp',u:p=>[p.amt/100,p.thr/100]},
+ levels:{f:'levels',u:p=>[p.inb/255,p.inw/255,p.gamma,p.outb/255,p.outw/255]},
+ tonecurve:{f:'tonecurve',u:p=>[p.shadows/100,p.mids/100,p.highs/100,p.contrast/100]},
+ vibrance:{f:'vibrance',u:p=>[p.amt/100]},
+ enhance:{expand:p=>[{t:'denoise',p:{amt:p.denoise,detail:50}},{t:'unsharp',p:{amt:p.sharp*.6,r:1.2,thr:0}},{t:'unsharp',p:{amt:p.detail,r:14,thr:0}}]}
+});
+const glNeeds=d=>d.expand?['denoise','unsharp','copy','gauss']:d.blur!==undefined?['copy','gauss',d.comb]:[d.f];
+function glProg(name){
+ let pr=GL.progs[name];if(pr)return pr;const gl=GL.gl;
+ const mk=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(name+': '+gl.getShaderInfoLog(s));return s};
+ const p=gl.createProgram();gl.attachShader(p,mk(gl.VERTEX_SHADER,GLV));gl.attachShader(p,mk(gl.FRAGMENT_SHADER,GLH+GLS[name]));gl.linkProgram(p);
+ if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(name+': '+gl.getProgramInfoLog(p));
+ const l={};for(const n of['tex','tex2','res','t','u'])l[n]=gl.getUniformLocation(p,n);
+ return GL.progs[name]={p,l}
+}
+function glInit(){
+ if(GL.ok!==null)return GL.ok;GL.ok=false;
+ try{
+  const c=document.createElement('canvas');c.width=c.height=2;
+  const gl=c.getContext('webgl2',{alpha:true,premultipliedAlpha:true,preserveDrawingBuffer:true,antialias:false,depth:false,stencil:false,powerPreference:'high-performance'});
+  if(!gl)throw Error('WebGL2 unavailable');
+  GL.c=c;GL.gl=gl;GL.half=!!(gl.getExtension('EXT_color_buffer_float')||gl.getExtension('EXT_color_buffer_half_float'));GL.max=gl.getParameter(gl.MAX_TEXTURE_SIZE);GL.ua=new Float32Array(8);
+  GL.vao=gl.createVertexArray();gl.bindVertexArray(GL.vao);const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  GL.up=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,GL.up);glParams(gl);GL.upW=GL.upH=0;
+  c.addEventListener('webglcontextlost',e=>{e.preventDefault();glFatal(Error('GPU context lost'))});
+  GL.ok=true;
+  for(const[t,d]of Object.entries(GLFX))for(const n of glNeeds(d))try{glProg(n)}catch(e){console.warn('GPU shader unavailable, using CPU for',t,e.message);GL.bad.add(t)}
+  if(!glSelfTest())throw Error('GPU self-test failed');
+  glUI();return true
+ }catch(e){GL.ok=false;console.warn('GPU effects disabled:',e.message);glUI();return false}
+}
+function glParams(gl){gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)}
+function glFatal(e){console.error('GPU effects disabled:',e);if(GL.fatal)return;GL.fatal=true;GL.ok=false;glUI();toast('GPU effects failed ('+(e&&e.message||e)+'). Using the CPU renderer instead.',1)}
+const glUsable=t=>!!GLFX[t]&&GL.on&&!GL.bad.has(t)&&glInit();
+const glDiscount=t=>(GL.ok&&GL.on&&GLFX[t]&&!GL.bad.has(t))?.35:1;
+function glUI(){const b=document.getElementById('bGpu');if(!b)return;b.classList.toggle('on',GL.on&&GL.ok!==false);b.title=GL.ok===false?'GPU effects unavailable on this device — using CPU renderer':GL.on?'GPU effects on (click to switch to CPU renderer)':'GPU effects off (click to enable)'}
+function glDisposePool(){const gl=GL.gl;for(const r of GL.pool){gl.deleteFramebuffer(r.fbo);gl.deleteTexture(r.tex)}GL.pool=[]}
+function getRT(w,h){
+ const gl=GL.gl;let r=GL.pool.find(x=>x.free&&x.w===w&&x.h===h);if(r){r.free=false;return r}
+ const free=GL.pool.filter(x=>x.free);if(GL.pool.length>14&&free.length){const o=free[0];gl.deleteFramebuffer(o.fbo);gl.deleteTexture(o.tex);GL.pool.splice(GL.pool.indexOf(o),1)}
+ for(let attempt=0;attempt<2;attempt++){
+  const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);glParams(gl);
+  gl.texImage2D(gl.TEXTURE_2D,0,GL.half?gl.RGBA16F:gl.RGBA8,w,h,0,gl.RGBA,GL.half?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,null);
+  const fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,free:false};GL.pool.push(r);return r}
+  gl.deleteFramebuffer(fbo);gl.deleteTexture(tex);if(!GL.half)break;GL.half=false;glDisposePool()
+ }
+ throw Error('Cannot create render target '+w+'x'+h)
+}
+const relRT=r=>{if(r)r.free=true};
+function glPass(name,ins,out,u,w,h,t){
+ const gl=GL.gl,pr=glProg(name);gl.bindFramebuffer(gl.FRAMEBUFFER,out?out.fbo:null);gl.viewport(0,0,w,h);gl.useProgram(pr.p);
+ for(let i=0;i<ins.length;i++){gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,ins[i])}
+ gl.uniform1i(pr.l.tex,0);if(pr.l.tex2)gl.uniform1i(pr.l.tex2,1);gl.uniform2f(pr.l.res,w,h);gl.uniform1f(pr.l.t,t||0);
+ const ua=GL.ua;ua.fill(0);for(let i=0;i<u.length&&i<8;i++)ua[i]=u[i];gl.uniform1fv(pr.l.u,ua);
+ gl.drawArrays(gl.TRIANGLE_STRIP,0,4);GL.passes++
+}
+// Gaussian blur at reduced resolution: halve until sigma<=5 px, 2 separable passes, then
+// the caller samples the small result with bilinear filtering (cheap at any radius).
+function blurRT(inRT,sigma,W,H){
+ let s=1;while(sigma/s>5&&s<64)s*=2;let w=W,h=H,cur=inRT;
+ for(let k=s;k>1;k>>=1){w=Math.max(1,w>>1);h=Math.max(1,h>>1);const n=getRT(w,h);glPass('copy',[cur.tex],n,[],w,h,0);if(cur!==inRT)relRT(cur);cur=n}
+ const sg=sigma/s,a=getRT(w,h);glPass('gauss',[cur.tex],a,[1,0,sg],w,h,0);if(cur!==inRT)relRT(cur);
+ const b=getRT(w,h);glPass('gauss',[a.tex],b,[0,1,sg],w,h,0);relRT(a);return b
+}
+function glRun(srcCanvas,list,W,H,t,dst){
+ if(!GL.on||!glInit()||W>GL.max||H>GL.max)return false;
+ list=list.flatMap(e=>GLFX[e.t].expand?GLFX[e.t].expand(e.p):[e]).filter(e=>!effectIsNeutral(e.t,e.p));const gl=GL.gl;GL.runs++;
+ if(GL.W!==W||GL.H!==H){glDisposePool();GL.W=W;GL.H=H;GL.c.width=W;GL.c.height=H}
+ gl.bindTexture(gl.TEXTURE_2D,GL.up);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
+ if(GL.upW!==W||GL.upH!==H){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,srcCanvas);GL.upW=W;GL.upH=H}else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,srcCanvas);
+ gl.bindVertexArray(GL.vao);
+ let cur={tex:GL.up,own:false};const take=rt=>{if(cur.own)relRT(cur);cur=rt;cur.own=true};
+ try{
+  for(const e of list){
+   const d=GLFX[e.t];
+   if(d.blur!==undefined){
+    let sg=Math.max(0,d.blur(e.p))*W/1920;if(sg<.25){if(d.comb==='copy')continue;sg=.25}
+    const b=blurRT(cur,sg,W,H),out=getRT(W,H);
+    if(d.comb==='copy')glPass('copy',[b.tex],out,[],W,H,t);else glPass(d.comb,[cur.tex,b.tex],out,d.u(e.p),W,H,t);
+    relRT(b);take(out)
+   }else{const out=getRT(W,H);glPass(d.f,[cur.tex],out,d.u(e.p,W,H,t),W,H,t);take(out)}
+  }
+  gl.disable(gl.BLEND);glPass('copy',[cur.tex],null,[],W,H,0)
+ }finally{if(cur.own)relRT(cur);for(const r of GL.pool)if(r.free===false&&r!==cur)r.free=true}
+ const d=dst.getContext('2d');d.setTransform(1,0,0,1,0,0);d.globalCompositeOperation='source-over';d.globalAlpha=1;d.filter='none';d.clearRect(0,0,W,H);d.drawImage(GL.c,0,0);
+ return true
+}
+function glSelfTest(){
+ const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c},src=mk(8,8),dst=mk(8,8),g=src.getContext('2d');
+ g.fillStyle='#00f';g.fillRect(0,0,8,8);g.fillStyle='#f00';g.fillRect(0,0,4,4);
+ if(!glRun(src,[{t:'invert',p:{amt:0}}],8,8,0,dst))return false;
+ const px=(c,x,y)=>c.getContext('2d').getImageData(x,y,1,1).data,a=px(dst,1,1),b=px(dst,6,6),e=px(dst,1,6);
+ if(!(a[0]>200&&a[2]<50&&b[2]>200&&b[0]<50&&e[2]>200&&e[0]<50)){console.warn('GPU orientation/format self-test mismatch',[...a],[...b],[...e]);return false}
+ const s2=mk(64,64),d2=mk(64,64),g2=s2.getContext('2d');g2.fillStyle='rgb(200,100,50)';g2.fillRect(0,0,64,64);
+ if(!glRun(s2,[{t:'blur',p:{r:40}}],64,64,0,d2))return false;
+ const m=px(d2,32,32);if(Math.abs(m[0]-200)>6||Math.abs(m[1]-100)>6||Math.abs(m[2]-50)>6){console.warn('GPU blur self-test mismatch',[...m]);return false}
+ GL.W=0;GL.H=0;return true
+}
+/* ----- preview frame cache: bounded LRU of fully composited frames, paused/scrub only ----- */
+const FC={map:new Map(),bytes:0,max:Math.min(256,(navigator.deviceMemory||4)*48)*1048576,hits:0,miss:0,sig:'',spare:[]};
+function fcClear(){for(const c of FC.map.values())if(FC.spare.length<4)FC.spare.push(c);FC.map.clear();FC.bytes=0;FC.sig=''}
+const projSig=()=>JSON.stringify([P.tracks,P.clips,P.w,P.h,P.fit,P.fps])+'|'+Object.keys(blobs).length;
+function previewSettled(t){
+ for(const c of P.clips){
+  if(t<c.start||t>=c.start+c.dur||c.text)continue;const m=P.media[c.media];if(!m)continue;const tr=trk(c.track);if(!tr||!live(tr))continue;
+  const e=els[c.id];if(m.type==='image'){if(!e||!e.complete)return false;continue}if(m.type!=='video')continue;
+  if(!e||e.seeking||e._cutroomSeeking||e.readyState<2||e._cutroomDesiredTime==null)return false;
+  const f=Math.max(1,m.fps||P.fps||30);if(Math.round(e._cutroomDesiredTime*f)!==Math.round(e.currentTime*f))return false
+ }return true
+}
+function fcPut(key,W,H){
+ let c=FC.spare.find(x=>x.width===W&&x.height===H);if(c)FC.spare.splice(FC.spare.indexOf(c),1);else{c=document.createElement('canvas');c.width=W;c.height=H}
+ c.getContext('2d').drawImage(cv,0,0);FC.map.set(key,c);FC.bytes+=W*H*4;
+ while(FC.bytes>FC.max&&FC.map.size>1){const k=FC.map.keys().next().value,o=FC.map.get(k);FC.map.delete(k);FC.bytes-=o.width*o.height*4;if(FC.spare.length<4)FC.spare.push(o)}
+}
+function renderPreview(){
+ const W=cv.width,H=cv.height;
+ if(playing||exporting){render(cx,W,H,T);return}
+ const sg=projSig();if(sg!==FC.sig){fcClear();FC.sig=sg}
+ const key=Math.round(T*P.fps)+'|'+W+'x'+H,hit=FC.map.get(key);
+ if(hit){FC.map.delete(key);FC.map.set(key,hit);cx.setTransform(1,0,0,1,0,0);cx.globalAlpha=1;cx.globalCompositeOperation='source-over';cx.filter='none';cx.drawImage(hit,0,0);FC.hits++;return}
+ FC.miss++;render(cx,W,H,T);if(previewSettled(T))fcPut(key,W,H)
+}
+function perfLabel(){const n=FC.hits+FC.miss;return `GPU fx ${GL.ok===false?'unavailable':GL.on?(GL.ok?'on':'idle'):'off'} · cache ${FC.map.size} fr${n?' · '+Math.round(FC.hits*100/n)+'% hit':''}`}
+document.getElementById('bGpu')?.addEventListener('click',()=>{GL.on=!GL.on;fcClear();glUI();dirty();toast(GL.on?'GPU effects on':'GPU effects off — using CPU renderer')});
+
+const FX_GROUPS=[
+ {name:'Color & grading',items:['color','monochrome','sepia','hueshift','filmfade','cctoner','invert','colorwash','levels','tonecurve','vibrance']},
+ {name:'Blur & motion',items:['blur','dirblur','radblur','zoomblur','shake','ptime','sharpen','edge','softfocus','ghost']},
+ {name:'Light & atmosphere',items:['glow','vignette','shadow','ccsweep','ccrays','flash','letterbox','lensflare','softvignette','lightleak','bloom']},
+ {name:'Distortion & glitch',items:['rgb','vhs','glitch','wave','pixelate','cckal','cclens','ccrep','ccmirror','mirror','scanlines']},
+ {name:'Quality & detail',items:['enhance','denoise','unsharp','tiltshift']},
+ {name:'Keying & texture',items:['green','grain']}
+];
+const normalizeTimeMap=arr=>{if(!Array.isArray(arr))return null;const a=arr.map(x=>({t:clamp(Number(x.t)||0,0,1),v:clamp(Number(x.v)||0,0,1),e:['linear','hold','in','out','inout','bezier'].includes(x.e)?x.e:'inout'})).sort((x,y)=>x.t-y.t),out=[];for(const x of a){if(out.length&&Math.abs(out[out.length-1].t-x.t)<1e-5)out[out.length-1]=x;else out.push(x)}return out.length>=2?out:null};
+const mapValue=(arr,u)=>{
+ if(!arr?.length)return clamp(u,0,1);if(u<=arr[0].t)return arr[0].v;if(u>=arr[arr.length-1].t)return arr[arr.length-1].v;
+ let i=0;while(i<arr.length-2&&arr[i+1].t<u)i++;const a=arr[i],b=arr[i+1],h=Math.max(1e-6,b.t-a.t),q=clamp((u-a.t)/h,0,1);
+ if(a.e!=='bezier'){const ease=EASE[a.e||'linear']||EASE.linear;return clamp(a.v+(b.v-a.v)*ease(q),0,1)}
+ // Shape-preserving cubic Hermite interpolation. Tangents fall to zero at
+ // direction changes, so a forward -> reverse -> forward ramp does not snap.
+ const d=(b.v-a.v)/h,sec=(j)=>{const x=arr[j],y=arr[j+1];return(y.v-x.v)/Math.max(1e-6,y.t-x.t)};
+ const tangent=(j)=>{if(j<=0)return sec(0);if(j>=arr.length-1)return sec(arr.length-2);const d0=sec(j-1),d1=sec(j);if(d0*d1<=0)return 0;const h0=arr[j].t-arr[j-1].t,h1=arr[j+1].t-arr[j].t,w1=2*h1+h0,w2=h1+2*h0;return(w1+w2)/(w1/d0+w2/d1)};
+ const m0=tangent(i),m1=tangent(i+1),q2=q*q,q3=q2*q;
+ const v=(2*q3-3*q2+1)*a.v+(q3-2*q2+q)*h*m0+(-2*q3+3*q2)*b.v+(q3-q2)*h*m1;
+ return clamp(v,0,1)
+};
+// timeMap points are normalized once when presets/projects are loaded or edited.
+// Keeping the normalized array on the clip avoids allocating/sorting a new array on every frame.
+const timeMapPosition=(c,lt)=>{const local=clamp(lt/Math.max(.001,c.dur),0,1),start=Number.isFinite(c.timeMapTimelineStart)?c.timeMapTimelineStart:0,span=Number.isFinite(c.timeMapTimelineSpan)?c.timeMapTimelineSpan:1;return clamp(start+local*span,0,1)};
+const mappedProgress=(c,lt)=>Array.isArray(c.timeMap)&&c.timeMap.length>=2?mapValue(c.timeMap,timeMapPosition(c,lt)):null;
+function mappedSpeed(c,lt){const a=c.timeMap;if(!Array.isArray(a)||a.length<2)return c.rev?-c.speed:c.speed;const u=clamp(lt/Math.max(.001,c.dur),0,1),h=Math.max(.0005,Math.min(.005,1/(Math.max(1,P.fps)*4))),u0=clamp(u-h,0,1),u1=clamp(u+h,0,1),start=Number.isFinite(c.timeMapTimelineStart)?c.timeMapTimelineStart:0,scale=Number.isFinite(c.timeMapTimelineSpan)?c.timeMapTimelineSpan:1;if(u1<=u0)return 0;const sourceSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:c.dur*c.speed),v0=mapValue(a,clamp(start+u0*scale,0,1)),v1=mapValue(a,clamp(start+u1*scale,0,1));return sourceSpan/Math.max(.001,c.dur)*(v1-v0)/(u1-u0)}
+function timeMapFor(mode){if(mode==='boomerang')return normalizeTimeMap([{t:0,v:0,e:'linear'},{t:.5,v:1,e:'linear'},{t:1,v:0,e:'linear'}]);if(mode==='smoothBoomerang')return normalizeTimeMap([{t:0,v:0,e:'bezier'},{t:.5,v:1,e:'bezier'},{t:1,v:0,e:'bezier'}]);if(mode==='reverse')return normalizeTimeMap([{t:0,v:1,e:'inout'},{t:1,v:0,e:'inout'}]);if(mode==='smoothReverse')return normalizeTimeMap([{t:0,v:0,e:'bezier'},{t:.16,v:.2,e:'bezier'},{t:.32,v:.36,e:'bezier'},{t:.43,v:.39,e:'bezier'},{t:.58,v:.12,e:'bezier'},{t:.68,v:.04,e:'bezier'},{t:.82,v:.34,e:'bezier'},{t:1,v:1,e:'bezier'}]);if(mode==='velocity')return normalizeTimeMap([{t:0,v:0,e:'in'},{t:.2,v:.08,e:'inout'},{t:.5,v:.48,e:'inout'},{t:.82,v:.94,e:'out'},{t:1,v:1,e:'out'}]);if(mode==='slow')return normalizeTimeMap([{t:0,v:0,e:'out'},{t:.2,v:.08,e:'inout'},{t:.8,v:.58,e:'inout'},{t:1,v:1,e:'in'}]);return null}
+function buildSmoothReverseMap(settings={}){
+ const duration=clamp(Number(settings.reverseDuration??.22),.08,.38),forward=clamp(Number(settings.forwardSpeed??1),.35,2.5),reverse=clamp(Number(settings.reverseSpeed??.85),.2,1.5),pre=(1-duration)/2,forwardDistance=forward*pre,reverseDistance=Math.min(reverse*duration,forwardDistance*.82),net=Math.max(.025,2*forwardDistance-reverseDistance),atReverse=clamp(forwardDistance/net,.01,.99),afterReverse=clamp((forwardDistance-reverseDistance)/net,.005,.98);
+ return normalizeTimeMap([{t:0,v:0,e:'bezier'},{t:pre,v:atReverse,e:'bezier'},{t:pre+duration,v:afterReverse,e:'bezier'},{t:1,v:1,e:'bezier'}]);
+}
+function normalizeRetimeSettings(v){if(!v||v.type!=='smoothReverse')return null;return{type:'smoothReverse',reverseDuration:clamp(Number(v.reverseDuration??.22),.08,.38),forwardSpeed:clamp(Number(v.forwardSpeed??1),.35,2.5),reverseSpeed:clamp(Number(v.reverseSpeed??.85),.2,1.5)}}
+function setRetime(c,mode){snap('retime');if(mode==='normal'){c.timeMap=null;c.timeMapSourceIn=null;c.timeMapSourceSpan=null;c.timeMapTimelineStart=null;c.timeMapTimelineSpan=null;c.timeMapSettings=null;c.rev=false}else{c.timeMapSettings=mode==='smoothReverse'?{type:'smoothReverse',reverseDuration:.22,forwardSpeed:1,reverseSpeed:.85}:null;c.timeMap=c.timeMapSettings?buildSmoothReverseMap(c.timeMapSettings):timeMapFor(mode);c.timeMapSourceIn=c.in;c.timeMapSourceSpan=c.dur*c.speed;c.timeMapTimelineStart=0;c.timeMapTimelineSpan=1;c.rev=false}fcClear();drawProps();drawTL();dirty();sync(T,false)}
+const retimeFrames={};
+const LBL={inb:'Input black',inw:'Input white',gamma:'Gamma',outb:'Output black',outw:'Output white',shadows:'Shadows',mids:'Midtones',highs:'Highlights',detail:'Detail',denoise:'Denoise',sharp:'Sharpen',drift:'Drift',len:'Length',ang:'Angle',r:'Radius',amt:'Amount',off:'Offset',size:'Size',thr:'Threshold',soft:'Softness',amp:'Amplitude',spd:'Speed',freq:'Frequency',rot:'Rotation',b:'Blur',op:'Opacity',x:'X',y:'Y',pos:'Position',width:'Width',n:'Segments',zoom:'Zoom',cx:'Center X',cy:'Center Y',tiles:'Tiles',mirror:'Mirror',mag:'Magnify',shadow:'Shadow hue',high:'Light hue',inv:'Invert',fps:'Frame rate',bright:'Brightness',contrast:'Contrast',sat:'Saturation',exp:'Exposure',hue:'Hue',temp:'Temperature',tint:'Tint'};
+const defs=t=>Object.fromEntries(Object.entries(FX[t].p).map(([k,v])=>[k,v[0]]));
+function effectIsNeutral(type,p){
+ switch(type){
+  case 'blur': return p.r<=0;
+  case 'dirblur': return p.len<=0;
+  case 'radblur': return p.ang<=0;
+  case 'zoomblur': return p.amt<=0;
+  case 'glow': return p.amt<=0||p.r<=0;
+  case 'rgb': return p.off<=0;
+  case 'grain': case 'glitch': case 'vhs': case 'edge': case 'ccrays': case 'ccsweep': case 'cctoner': return p.amt<=0;
+  case 'vignette': case 'scanlines': case 'lensflare': case 'colorwash': case 'ghost': case 'softvignette': return p.amt<=0;
+  case 'wave': return p.amp<=0;
+  case 'shake': return p.amt<=0;
+  case 'sharpen': return p.amt<=0;
+  case 'shadow': return p.op<=0;
+  case 'pixelate': return p.size<=1;
+  case 'invert': return p.amt<=0;
+  case 'denoise': case 'unsharp': case 'lightleak': case 'bloom': return p.amt<=0;
+  case 'vibrance': return p.amt===0;
+  case 'tiltshift': return p.r<=0;
+  case 'tonecurve': return !p.shadows&&!p.mids&&!p.highs&&!p.contrast;
+  case 'levels': return p.inb<=0&&p.inw>=255&&p.gamma===1&&p.outb<=0&&p.outw>=255;
+  case 'enhance': return p.denoise<=0&&p.sharp<=0&&p.detail<=0;
+  default: return false;
+ }
+}
+
+const e3=EASE.inout,TR={fade:['Fade',u=>({o:u})],dissolve:['Cross Dissolve',u=>({o:e3(u)})],zin:['Zoom In',u=>({s:1.8-.8*e3(u),o:u})],zout:['Zoom Out',u=>({s:.4+.6*e3(u),o:u})],smooth:['Smooth Zoom',u=>({s:1.5-.5*e3(u),bl:(1-u)*18,o:Math.min(1,u*3)})],whip:['Whip Pan',u=>({x:(1-e3(u))*.6,bl:(1-u)*50,o:Math.min(1,u*4)})],flash:['Flash',u=>({fl:1-u})],blur:['Blur',u=>({bl:(1-u)*40,o:u})],glitch:['Glitch',u=>({x:Math.random()<.5*(1-u)?(Math.random()-.5)*.2*(1-u):0,o:Math.random()<.2*(1-u)?0:1})],spin:['Spin',u=>({r:(1-e3(u))*360,s:e3(u),o:u})],slide:['Slide',u=>({x:-(1-e3(u))})],shake:['Shake',u=>({x:Math.sin(u*60)*.05*(1-u),y:Math.cos(u*50)*.04*(1-u),o:Math.min(1,u*5)})]};
+/* ---------- presets ---------- */
+const B=(name,cat,fx,kf,timeMap,retimeSettings)=>({name,cat,fx:fx.map(([t,p])=>({t,p})),kf:kf||{},kfRel:true,timeMap:timeMap?timeMap.map(([t,v,e])=>({t,v,e:e||'inout'})):null,retimeSettings:normalizeRetimeSettings(retimeSettings)});
+const BUILTIN=[
+ B('Smooth Reverse Football','Football Motion',[['dirblur',{len:18,ang:0}],['zoomblur',{amt:7}],['color',{contrast:16,sat:18,bright:2}],['sharpen',{amt:65}],['shake',{amt:0,freq:6,rot:.25}]],{'fx:0:len':[[0,0,'out'],[.34,16,'inout'],[.44,34,'inout'],[.64,26,'inout'],[.78,12,'out'],[1,0,'out']],'fx:1:amt':[[0,0,'out'],[.38,5,'inout'],[.48,15,'inout'],[.67,10,'inout'],[.86,2,'out'],[1,0,'out']]},null,{type:'smoothReverse',reverseDuration:.22,forwardSpeed:1,reverseSpeed:.85}),
+ B('Smooth Velocity','Football Motion',[['dirblur',{len:0,ang:0}],['shake',{amt:5,freq:3,rot:.25}]],{'fx:0:len':[[0,0,'out'],[.25,95,'inout'],[.55,0,'out'],[.8,70,'inout'],[1,0]]}),
+ B('Cinematic Football Zoom','Zoom',[['zoomblur',{amt:18}],['vignette',{amt:28}],['color',{contrast:14,sat:12}]],{'tr.s':[[0,100,'out'],[.35,118,'inout'],[1,100]]}),
+ B('Football Motion Blur','Motion',[['dirblur',{len:32,ang:0}]]),
+ B('Smooth Camera Shake','Camera',[['shake',{amt:7,freq:2.1,rot:.45}]]),
+ B('Professional Sharpen','Quality',[['sharpen',{amt:72}],['color',{contrast:8,sat:5}]]),
+ B('RGB Split Football','Glitch',[['rgb',{off:10,ang:0}],['shake',{amt:3,freq:8,rot:.15}]]),
+ B('Cinematic Glow','Light',[['glow',{r:18,amt:55}],['vignette',{amt:22}]]),
+ B('Flash Transition','Transition',[['color',{exp:0,bright:0}]],{'fx:0:exp':[[0,0,'out'],[.06,2.6,'out'],[.16,0,'inout']]}),
+ B('Smooth Slow Motion','Speed',[['dirblur',{len:4,ang:0}]],{},[[0,0],[.18,.07],[.52,.31],[.78,.62],[1,1]]),
+ B('Velocity Ramp','Speed',[['dirblur',{len:0,ang:0}],['zoomblur',{amt:8}]],{'fx:0:len':[[0,0,'out'],[.18,120,'inout'],[.42,0,'out'],[.7,90,'inout'],[1,0]]}),
+ B('Football Highlight Color','Color',[['color',{contrast:20,sat:24,temp:8,tint:-3,bright:2}],['vignette',{amt:30}]]),
+ B('Reverse Velocity','Football Motion',[['dirblur',{len:26,ang:180}],['rgb',{off:5,ang:180}]],{},[[0,0],[.22,.25],[.48,.1],[.7,.02],[1,1]]),
+ B('Smooth Zoom Transition','Transition',[['zoomblur',{amt:22}],['glow',{r:12,amt:25}]],{'tr.s':[[0,125,'out'],[.3,100,'inout'],[.7,108,'out'],[1,100]]}),
+ B('Cinematic Football Combo','Football Combo',[['color',{contrast:18,sat:20,temp:6}],['sharpen',{amt:60}],['glow',{r:14,amt:34}],['vignette',{amt:26}],['dirblur',{len:0,ang:0}]],{'fx:4:len':[[0,0],[.25,65,'inout'],[.5,0],[.75,80,'inout'],[1,0]]})
+];
+let custom=[];
+const loadCustom=async()=>{try{custom=await idb('presets','getAll')}catch{custom=[]}custom=custom.filter(Boolean);if(tab=='presets')drawLeft()};
+// .ffx files are preserved byte-for-byte unless an AE JSON export is supplied.
+// Preset keyframe times in the native schema are normalized to the clip (kfRel).
+const FFX_INTENTS=[
+ [/punch/,{label:'Punch-in zoom',kf:{'tr.s':[[0,100,'out'],[.2,120,'inout'],[1,120,'linear']]}}],
+ [/zoom\s*in|push\s*in|scale\s*up|dolly\s*in|slow\s*in/,{label:'Zoom in',kf:{'tr.s':[[0,100,'inout'],[1,125,'inout']]}}],
+ [/zoom\s*out|pull\s*out|scale\s*down|dolly\s*out|pull\s*back/,{label:'Zoom out',kf:{'tr.s':[[0,125,'inout'],[1,100,'inout']]}}],
+ [/spin|rotate|roll/,{label:'Spin',kf:{'tr.r':[[0,0,'inout'],[1,360,'inout']]}}],
+ [/fade\s*in/,{label:'Fade in',kf:{'tr.o':[[0,0,'out'],[.25,100,'linear'],[1,100,'linear']]}}],
+ [/fade\s*out/,{label:'Fade out',kf:{'tr.o':[[0,100,'linear'],[.75,100,'in'],[1,0,'linear']]}}],
+ [/quality|enhanc|topaz|upscal|upres|up res|restor|crisp|clarity|detail|sharp|\bhd\b|\b4k\b|\b8k\b|clean/,{label:'Quality / enhance',fx:[['enhance',{denoise:30,sharp:70,detail:35}],['vibrance',{amt:15}]]}],
+ [/shake|earthquake|jitter|handheld/,{label:'Camera shake',fx:[['shake',{amt:14,freq:7,rot:1.2}]]}],
+ [/glitch|distort|digital/,{label:'Glitch',fx:[['glitch',{amt:60}],['rgb',{off:10,ang:0}]]}],
+ [/vhs|retro|analog|crt/,{label:'VHS look',fx:[['vhs',{amt:55}],['grain',{amt:20}]]}],
+ [/glow|dream|bloom|soft light/,{label:'Glow',fx:[['glow',{r:30,amt:70}]]}],
+ [/light\s*leak|leak/,{label:'Light leak',fx:[['lightleak',{}]]}],
+ [/tilt|miniature/,{label:'Tilt-shift',fx:[['tiltshift',{}]]}],
+ [/zoom\s*blur|radial\s*blur/,{label:'Zoom blur',fx:[['zoomblur',{amt:30}]]}],
+ [/motion\s*blur|directional|whip|swish/,{label:'Motion blur',fx:[['dirblur',{len:70,ang:0}]]}],
+ [/blur|defocus|gaussian/,{label:'Blur',fx:[['blur',{r:14}]]}],
+ [/vignette/,{label:'Vignette',fx:[['vignette',{amt:55}]]}],
+ [/film|grain|35mm|16mm/,{label:'Film grain',fx:[['grain',{amt:28}],['filmfade',{fade:20,warm:8}]]}],
+ [/cinematic|movie|teal|orange|grade|grading|color\s*correct|colour/,{label:'Cinematic grade',fx:[['color',{contrast:14,sat:10,temp:8}],['vignette',{amt:30}]]}],
+ [/black\s*(and|&|n)?\s*white|\bb\s*&\s*w\b|\bbw\b|mono/,{label:'Black & white',fx:[['monochrome',{amt:100}]]}],
+ [/sepia|vintage|old/,{label:'Sepia',fx:[['sepia',{amt:60}]]}],
+ [/pixel|mosaic/,{label:'Pixelate',fx:[['pixelate',{size:14}]]}],
+ [/invert|negative/,{label:'Invert',fx:[['invert',{amt:100}]]}],
+ [/chromatic|rgb\s*split|aberration/,{label:'RGB split',fx:[['rgb',{off:12,ang:0}]]}],
+ [/wave|ripple|twirl|warp/,{label:'Wave warp',fx:[['wave',{amp:24,len:85,spd:2}]]}],
+ [/green\s*screen|chroma|key/,{label:'Green screen key',fx:[['green',{thr:30,soft:20}]]}],
+ [/shadow/,{label:'Drop shadow',fx:[['shadow',{}]]}],
+ [/lens\s*flare|flare/,{label:'Lens flare',fx:[['lensflare',{}]]}],
+ [/scanline/,{label:'Scanlines',fx:[['scanlines',{}]]}]
+];
+const BR=(...a)=>({...B(...a),kfRel:true});
+BUILTIN.push(
+ BR('Zoom In','Zoom',[],{'tr.s':[[0,100,'inout'],[1,125,'inout']]}),
+ BR('Zoom Out','Zoom',[],{'tr.s':[[0,125,'inout'],[1,100,'inout']]}),
+ BR('Punch In','Zoom',[['zoomblur',{amt:14}]],{'tr.s':[[0,100,'out'],[.2,120,'inout'],[1,120,'linear']],'fx:0:amt':[[0,26,'out'],[.2,0,'linear'],[1,0,'linear']]}),
+ BR('Slow Push In (Cinematic)','Zoom',[['vignette',{amt:30}],['color',{contrast:10,sat:8}]],{'tr.s':[[0,100,'linear'],[1,112,'linear']]}),
+ BR('Zoom Out Reveal','Zoom',[['zoomblur',{amt:24}]],{'tr.s':[[0,135,'out'],[1,100,'inout']],'fx:0:amt':[[0,24,'out'],[.6,0,'linear'],[1,0,'linear']]}),
+ BR('Spin Zoom','Zoom',[['dirblur',{len:40,ang:0}]],{'tr.s':[[0,100,'inout'],[1,140,'inout']],'tr.r':[[0,0,'inout'],[1,360,'inout']],'fx:0:len':[[0,0,'out'],[.5,70,'inout'],[1,0,'out']]}),
+ B('Topaz-style Enhance','Quality',[['enhance',{denoise:30,sharp:70,detail:35}],['vibrance',{amt:15}]]),
+ B('Topaz-style Clean & Sharpen','Quality',[['denoise',{amt:55,detail:60}],['unsharp',{amt:120,r:1.4,thr:2}]]),
+ B('Topaz-style Detail Boost','Quality',[['unsharp',{amt:90,r:1.2,thr:0}],['unsharp',{amt:70,r:14,thr:0}],['tonecurve',{contrast:12}]]),
+ B('4K Crisp Look','Quality',[['enhance',{denoise:20,sharp:90,detail:50}],['color',{contrast:8,sat:6}]]),
+ B('Low-light Clean-up','Quality',[['denoise',{amt:70,detail:40}],['tonecurve',{shadows:30,mids:12,highs:-4,contrast:6}],['vibrance',{amt:20}]]),
+ B('Levels Pop','Color',[['levels',{inb:12,inw:240,gamma:1.1,outb:0,outw:255}],['vibrance',{amt:25}]]),
+ B('Warm Light Leak','Light',[['lightleak',{pos:25,size:70,amt:70,hue:18,drift:40}]]),
+ B('Bloom Dream','Light',[['bloom',{thr:65,r:35,amt:80}],['softvignette',{}]]),
+ B('Tilt-Shift Miniature','Camera',[['tiltshift',{pos:50,size:22,r:14}],['vibrance',{amt:30}]])
+);
+const FOOTBALL_PRESET_NAMES=new Set(['Smooth Reverse Football','Smooth Velocity','Cinematic Football Zoom','Football Motion Blur','Smooth Camera Shake','Professional Sharpen','RGB Split Football','Cinematic Glow','Flash Transition','Smooth Slow Motion','Velocity Ramp','Football Highlight Color','Reverse Velocity','Smooth Zoom Transition','Cinematic Football Combo']);
+BUILTIN.forEach(p=>{if(FOOTBALL_PRESET_NAMES.has(p.name))p.cat='Football Edits'});
+const FFXMAP=[[/Unsharp/i,'unsharp'],[/Median|Remove Grain|Noise Reduction|Denois|Despeckle/i,'denoise'],[/Levels/i,'levels'],[/Curves/i,'tonecurve'],[/Vibran/i,'vibrance'],[/Light Leak/i,'lightleak'],[/Bloom/i,'bloom'],[/Tilt|Lens Blur/i,'tiltshift'],[/CC Radial Blur/i,'radblur'],[/Radial Fast Blur|CC Zoom/i,'zoomblur'],[/Gaussian|ADBE Blur|Fast Blur|Box Blur/i,'blur'],[/Directional|Motion Blur/i,'dirblur'],[/Glow/i,'glow'],[/Wave Warp|Displace|Twirl|Bulge|Ripple|Warp/i,'wave'],[/Noise|Grain/i,'grain'],[/Vignette/i,'vignette'],[/Mosaic|Pixel/i,'pixelate'],[/Keylight|Color Key|Chroma|Spill/i,'green'],[/Drop Shadow/i,'shadow'],[/Shake|Jitter|Wiggle/i,'shake'],[/Brightness|Levels|Curves|Hue|Lumetri|Tint|Exposure|Color/i,'color'],[/Sharpen/i,'sharpen'],[/Mirror/i,'ccmirror'],[/Kaleida|Kaleidoscope/i,'cckal'],[/Lens/i,'cclens'],[/Light Sweep/i,'ccsweep'],[/Light Rays|Rays/i,'ccrays'],[/Scan Lines|Scanlines/i,'scanlines'],[/Lens Flare/i,'lensflare'],[/Color Wash/i,'colorwash'],[/Ghost|Echo/i,'ghost']];
+function presetReport(title,rows,warnings,unsupported,apply){
+ const body=el('div',null,`<h3>${esc(title)}</h3><p class="hint" style="padding:0 0 8px">Conversion report. Native equivalents are approximations unless explicitly identified as exact.</p>
+ <h4>Converted effects (${rows.length})</h4>${rows.map(x=>`<div>${esc(x.source)} → <b>${esc(x.target)}</b> <small style="color:var(--mu)">(${esc(x.kind)})</small></div>`).join('')||'<p class="hint">No parameter-complete effects were detected.</p>'}
+ <h4>Unsupported / unparsed (${unsupported.length})</h4>${unsupported.map(x=>`<div>${esc(x)}</div>`).join('')||'<p class="hint">None detected.</p>'}
+ <h4>Warnings (${warnings.length})</h4>${warnings.map(x=>`<div>${esc(x)}</div>`).join('')||'<p class="hint">None.</p>'}`);
+ modal(body,[['Close'],...(apply?[['Apply supported approximations',apply,1]]:[])]);
+}
+// FFX uses Adobe's proprietary RIFX/FaFX serialization. We only inspect the
+// container and recognizable identifiers; we never fabricate AE parameter values.
+async function ffx(name,b){
+ const bytes=b instanceof Uint8Array?b:new Uint8Array(b),latin=new TextDecoder('latin1').decode(bytes),isContainer=latin.slice(0,4)==='RIFX'&&latin.slice(8,12)==='FaFX';
+ const le=new Uint8Array(bytes.length-(bytes.length%2));for(let i=0;i<le.length;i+=2){le[i]=bytes[i+1];le[i+1]=bytes[i]}
+ const decoded=[latin,new TextDecoder('utf-16le').decode(bytes),new TextDecoder('utf-16le').decode(le)],hints=[];
+ for(const text of decoded){const re=/(?:ADBE|CC|VC|BCC)[\w .:+()\/-]{2,100}/g;let m;while((m=re.exec(text))){const raw=m[0].replace(/[^\x20-\x7e].*$/,'').replace(/\s+/g,' ').trim();if(raw.length>3&&!hints.some(x=>x.name===raw&&x.offset===m.index))hints.push({name:raw,offset:m.index})}}
+ hints.sort((a,b)=>a.offset-b.offset);
+ const mappedHints=hints.map(h=>{const m=typeof FFXMAP!=='undefined'?FFXMAP.find(([re])=>re.test(h.name)):null;return{...h,possibleCutroomEffect:m?m[1]:null,classification:'identifier-hint-only'}});
+ const id=uid(),key='ffx-source:'+id,pr={id,format:'cutroom-preset',version:3,name:String(name||'Imported FFX').replace(/\.ffx$/i,''),cat:'AE source (needs conversion)',fx:[],kf:{},kfRel:true,timeMap:null,sourceOnly:true,folder:'After Effects source files',description:'Original Adobe .ffx bytes preserved. This file has not been converted into executable Cutroom effects.',compatibility:{source:'Adobe .ffx',level:'source-only',containerSignatureValid:isContainer,rawBytes:bytes.length,originalFileKey:key,identifierHints:mappedHints,unsupportedReason:'The internal FFX property/keyframe stream is proprietary and is not safely decoded by this browser importer. No values or keyframes were guessed.'}};
+ try{await idb('media','put',new Blob([bytes],{type:'application/octet-stream'}),key);await idb('presets','put',pr,id);await loadCustom()}catch(e){toast('Could not preserve the original FFX file: '+e.message,1);return}
+ const rows=mappedHints.map(h=>({source:h.name,target:h.possibleCutroomEffect&&FX[h.possibleCutroomEffect]?FX[h.possibleCutroomEffect].n:'Unmapped identifier',kind:'Identifier hint only — no parameters or keyframes extracted'}));
+ const warnings=[isContainer?'Valid RIFX/FaFX container signature found. This confirms the container only; it does not expose effect values.':'The file name ends in .ffx, but the expected RIFX/FaFX container signature was not found.','The original .ffx bytes have been saved unchanged in Cutroom. No generic effect objects were created, because that would falsely imply that Adobe settings had been recovered.','To convert its settings, open the preset in After Effects, apply it to a layer, run the included Cutroom_AE_Exporter.jsx on that selected layer, then import the generated Cutroom AE JSON file here.','Expressions are exported as source text for inspection; Cutroom does not execute arbitrary After Effects expressions. Unsupported plug-ins remain listed in the conversion report.'];
+ if(!mappedHints.length)warnings.push('No readable effect identifiers were found in the binary payload. The file is still preserved for later conversion.');
+ const body=el('div',null,`<h3>After Effects preset source: ${esc(name)}</h3><p class="hint">The original file is safely stored, but it has not been converted into a working effect chain.</p><p><b>${bytes.length.toLocaleString()} bytes preserved</b> · ${mappedHints.length} readable identifier hint(s) · 0 guessed effects</p><h4>Identifier hints</h4>${rows.map(x=>`<div>${esc(x.source)} → <b>${esc(x.target)}</b> <small style="color:var(--mu)">(${esc(x.kind)})</small></div>`).join('')||'<p class="hint">No readable identifiers found.</p>'}<h4>Conversion guidance</h4>${warnings.map(x=>`<p class="hint">${esc(x)}</p>`).join('')}`);
+ modal(body,[['Close'],['Download original .ffx',async()=>{const blob=await idb('media','get',key);if(blob)await save(name.toLowerCase().endsWith('.ffx')?name:name+'.ffx',blob);else toast('The original FFX bytes are not present in this browser storage.',1)}]]);
+}
+function normalizeKF(arr){if(!Array.isArray(arr))return[];return arr.map(a=>Array.isArray(a)?{t:+a[0],v:+a[1],e:['linear','hold','in','out','inout','bezier'].includes(a[2])?a[2]:'linear',...(a[3]&&typeof a[3]=='object'?{handle:a[3]}:{})}:a&&typeof a=='object'?{...a,t:+a.t,v:+a.v,e:['linear','hold','in','out','inout','bezier'].includes(a.e)?a.e:'linear'}:null).filter(a=>a&&Number.isFinite(a.t)&&Number.isFinite(a.v)).sort((a,b)=>a.t-b.t)}
+function validatePreset(p){
+ if(!p||typeof p!=='object'||!Array.isArray(p.fx))return null;
+ const fx=[],unsupported=[],sourceIndexes=[];
+ for(let i=0;i<p.fx.length;i++){const f=p.fx[i];if(!f||typeof f.t!=='string'||!FX[f.t]){unsupported.push({index:i,type:String(f?.t||'Unknown effect'),raw:f??null});continue}
+  const defaults=defs(f.t),params={...defaults},extra={};
+  if(f.p&&typeof f.p==='object')for(const[k,v]of Object.entries(f.p)){if(Object.prototype.hasOwnProperty.call(defaults,k)&&Number.isFinite(+v)){const spec=FX[f.t].p[k];params[k]=clamp(+v,spec[1],spec[2])}else extra[k]=v}
+  fx.push({t:f.t,p:params,off:!!f.off,meta:{...(f.meta&&typeof f.meta==='object'?structuredClone(f.meta):{}),unsupportedParameters:extra}});sourceIndexes.push(i);
+ }
+ const kf={};if(p.kf&&typeof p.kf==='object')for(const[key,arr]of Object.entries(p.kf)){let dest=key;const m=key.match(/^fx:(\d+):(.+)/);if(m){const ni=sourceIndexes.indexOf(+m[1]);if(ni<0){unsupported.push({index:+m[1],type:'Keyframes for unsupported effect',raw:{key,arr}});continue}dest=`fx:${ni}:${m[2]}`}const safe=normalizeKF(arr);if(safe.length)kf[dest]=safe}
+ const timeMap=normalizeTimeMap(p.timeMap),timeMapTimelineStart=clamp(Number(p.timeMapTimelineStart)||0,0,1),timeMapTimelineSpan=clamp(Number.isFinite(+p.timeMapTimelineSpan)?+p.timeMapTimelineSpan:1,0,1-timeMapTimelineStart);
+ const transform={};if(p.transform&&typeof p.transform==='object')for(const k of ['x','y','s','r','o'])if(Number.isFinite(+p.transform[k]))transform[k]=+p.transform[k];
+ return{preset:{format:'cutroom-preset',version:3,name:String(p.name||'Imported preset'),cat:String(p.cat||'Imported'),fx,kf,kfRel:!!p.kfRel,timeMap,timeMapTimelineStart,timeMapTimelineSpan,retimeSettings:normalizeRetimeSettings(p.retimeSettings),rev:!!p.rev,transform,folder:String(p.folder||''),description:String(p.description||''),sourceOnly:!!p.sourceOnly,compatibility:{...(p.compatibility&&typeof p.compatibility==='object'?structuredClone(p.compatibility):{}),unsupportedEffects:unsupported},thumbnail:p.thumbnail||null},unsupported:unsupported.map(x=>`${x.type} (source index ${x.index})`)};
+}
+const AE_EFFECT_MAP=[
+ [/CC Radial Fast Blur|Radial Fast Blur/i,'zoomblur'],[/CC Radial Blur|Radial Blur/i,'radblur'],
+ [/ADBE Gaussian Blur|Gaussian Blur|Fast Blur|Box Blur/i,'blur'],[/ADBE Sharpen|Sharpen/i,'sharpen'],
+ [/ADBE Glo2|ADBE Glow|Glow/i,'glow'],[/ADBE Directional Blur|Directional Blur/i,'dirblur'],
+ [/ADBE Wave Warp|Wave Warp/i,'wave'],[/ADBE Posterize Time|Posterize Time/i,'ptime'],
+ [/ADBE Noise|Noise/i,'grain'],[/ADBE Mosaic|Mosaic/i,'pixelate'],[/ADBE Drop Shadow|Drop Shadow/i,'shadow'],
+ [/ADBE Brightness & Contrast|Brightness & Contrast|ADBE HUE SATURATION|Hue\/Saturation|ADBE Exposure/i,'color'],
+ [/CC Light Sweep|Light Sweep/i,'ccsweep'],[/CC Light Rays|Light Rays/i,'ccrays']
+];
+function aeNumeric(v){if(typeof v==='number'&&Number.isFinite(v))return v;if(typeof v==='string'&&v.trim()!==''&&Number.isFinite(Number(v)))return Number(v);if(Array.isArray(v)&&v.length)return aeNumeric(v[0]);return null}
+function aeParam(type,name){const n=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'');const rules={
+ blur:[[/^(blurriness|bluramount|radius|blur)$/,'r']],
+ sharpen:[[/^(sharpness|amount)$/,'amt']],
+ glow:[[/^(glowradius|radius|blurriness)$/,'r'],[/^(glowintensity|intensity|amount)$/,'amt']],
+ zoomblur:[[/^(amount|blurriness|zoomamount)$/,'amt']],
+ radblur:[[/^(amount|angle|bluramount)$/,'ang']],
+ dirblur:[[/^(blurlength|length|amount)$/,'len'],[/^(direction|angle)$/,'ang']],
+ wave:[[/^(waveheight|height|amplitude)$/,'amp'],[/^(wavewidth|width|wavelength)$/,'len'],[/^(wavespeed|speed)$/,'spd']],
+ grain:[[/^(amountofnoise|amount|noiseamount)$/,'amt']],
+ pixelate:[[/^(horizontalblocks|blocksize|size)$/,'size']],
+ shadow:[[/^(distance|offset)$/,'x'],[/^(softness|blur)$/,'b'],[/^(opacity)$/,'op']],
+ ptime:[[/^(framerate|frame rate)$/,'fps']],
+ color:[[/^(brightness|masterlightness)$/,'bright'],[/^(contrast)$/,'contrast'],[/^(mastersaturation|saturation)$/,'sat'],[/^(masterhue|hue)$/,'hue'],[/^(exposure)$/,'exp'],[/^(temperature)$/,'temp'],[/^(tint)$/,'tint']],
+ ccsweep:[[/^(center|position|positionx)$/,'pos'],[/^(width)$/,'width'],[/^(angle|direction)$/,'ang'],[/^(intensity|amount)$/,'amt']],
+ ccrays:[[/^(centerx|xposition)$/,'x'],[/^(centery|yposition)$/,'y'],[/^(length|raylength)$/,'len'],[/^(intensity|amount)$/,'amt']],
+ hueshift:[[/^(hue|masterhue)$/,'hue'],[/^(saturation|sat|mastersaturation)$/,'sat'],[/^(brightness|lightness)$/,'bright']],
+ ccmirror:[[/^(reflectioncenter|center|position)$/,'pos']]
+};for(const [re,key] of rules[type]||[])if(re.test(n))return key;return null}
+function aeConvertValue(type,param,value){let n=aeNumeric(value);if(n===null)return null;if(type==='glow'&&param==='amt'&&n>=0&&n<=10)n*=100;if(type==='radblur'&&param==='ang'&&n>60)n=n*.6;if(type==='dirblur'&&param==='len'&&n>400)n=n*.4;if(type==='pixelate'&&param==='size'&&n>100)n=1000/n;if(type==='wave'&&param==='spd'&&Math.abs(n)<=2)n*=10;return n}
+function aeInterp(k){const x=String(k.interpolation||'').toLowerCase();if(x==='bezier'||k.inEase||k.outEase)return'bezier';if(x==='hold')return'hold';return'linear'}
+async function importAEExport(j,fileName){
+ const fx=[],kf={},rows=[],unsupported=[],warnings=[],rawEffects=Array.isArray(j.effects)?j.effects:[];
+ for(const source of rawEffects){const fullName=`${source.matchName||''} ${source.name||''}`.trim(),rule=AE_EFFECT_MAP.find(([re])=>re.test(fullName));if(!rule){unsupported.push(`${fullName||'Unknown effect'} — raw properties retained`);continue}
+  const type=rule[1],params=defs(type),index=fx.length,sourceProps=Array.isArray(source.properties)?source.properties:[],mappedProps=[];
+  for(const prop of sourceProps){const key=aeParam(type,prop.name)||aeParam(type,prop.matchName);if(!key||!Object.prototype.hasOwnProperty.call(params,key))continue;
+   const rawKeys=Array.isArray(prop.keys)?prop.keys:[],staticVal=aeConvertValue(type,key,prop.value);if(staticVal!==null){const spec=FX[type].p[key];params[key]=clamp(staticVal,spec[1],spec[2]);mappedProps.push(`${prop.name} → ${key}`)}
+   if(rawKeys.length){const converted=rawKeys.map(k=>({t:+k.t,v:aeConvertValue(type,key,k.value),e:aeInterp(k),sourceInterpolation:k.interpolation||'unknown',sourceEase:{in:k.inEase||null,out:k.outEase||null},sourceAutoBezier:!!k.temporalAutoBezier,sourceContinuous:!!k.temporalContinuous})).filter(k=>Number.isFinite(k.t)&&Number.isFinite(k.v));if(converted.length){mappedProps.push(`${prop.name} keyframes → ${key}`);kf[`fx:${index}:${key}`]=converted.map(({sourceInterpolation,sourceEase,sourceAutoBezier,sourceContinuous,...v})=>({...v,meta:{sourceInterpolation,sourceEase,sourceAutoBezier,sourceContinuous}}));params[key]=clamp(converted[0].v,FX[type].p[key][1],FX[type].p[key][2]);}}
+  }
+  if(mappedProps.length){fx.push({t:type,p:params,off:source.enabled===false,meta:{sourceEffectName:fullName,conversion:'mapped native approximation',compatibility:'converted',originalValuesRecovered:true,sourceProperties:sourceProps,unmappedProperties:sourceProps.filter(p=>!aeParam(type,p.name)&&!aeParam(type,p.matchName)).map(p=>p.name||p.matchName)}});rows.push({source:fullName,target:FX[type].n,kind:`${mappedProps.length} parameter(s) mapped from actual AE values into a native approximation`})}
+  else{unsupported.push(`${fullName} — effect recognised, but no supported parameter value/keyframe was mapped; it was not inserted with fabricated defaults.`);warnings.push(`${fullName}: no supported parameter values were mapped, so no executable Cutroom effect was fabricated. Original properties are retained in sourceData.`)}
+  if(sourceProps.some(p=>p.expressionEnabled&&p.expression))warnings.push(`${fullName}: expressions are preserved in sourceData but are not executed by Cutroom.`);
+  if(sourceProps.some(p=>(p.keys||[]).some(k=>String(k.interpolation).toLowerCase()==='bezier'||k.inEase||k.outEase)))warnings.push(`${fullName}: AE Bezier/ease data is retained as metadata; Cutroom uses an approximate native curve rather than Adobe's exact temporal handles.`);
+ }
+ const transform={},comp=j.composition||{},srcTr=j.transform||{},layer=j.layer||{};
+ function convertTransformPart(prop,key,offset){if(!prop)return;const conv=v=>{if(key==='x'||key==='y'){const n=Array.isArray(v)?aeNumeric(v[key==='x'?0:1]):aeNumeric(v);return n===null?null:n-(key==='x'?(+comp.width||P.w)/2:(+comp.height||P.h)/2)}if(key==='s'&&Array.isArray(v)){const a=aeNumeric(v[0]),b=aeNumeric(v[1]);return a===null?b:b===null?a:(a+b)/2}return aeNumeric(v)};const v=conv(prop.value);if(v!==null)transform[key]=v;
+  if(Array.isArray(prop.keys)&&prop.keys.length){const kk=prop.keys.map(k=>({t:+k.t,v:conv(k.value),e:aeInterp(k)})).filter(k=>Number.isFinite(k.t)&&Number.isFinite(k.v));if(kk.length)kf[`tr.${key}`]=kk}}
+ convertTransformPart(srcTr.position,'x');convertTransformPart(srcTr.position,'y');convertTransformPart(srcTr.scale,'s');convertTransformPart(srcTr.rotation,'r');convertTransformPart(srcTr.opacity,'o');
+ if(srcTr.anchorPoint)warnings.push('Anchor Point was preserved in sourceData but Cutroom has no native anchor-point transform control.');if(layer.threeDLayer)warnings.push('The source layer is 3D; Cutroom is a 2D editor, so 3D camera/depth behavior cannot be reproduced.');
+ if(!fx.length&&!Object.keys(transform).length&&!Object.keys(kf).length){presetReport(`After Effects layer export: ${fileName}`,[],['No supported AE effects or transform properties could be converted.'],unsupported,null);return}
+ const pr={format:'cutroom-preset',version:3,name:String(layer.name||fileName||'After Effects export'),cat:'After Effects converted',fx,kf,kfRel:true,timeMap:null,retimeSettings:null,transform,folder:'After Effects',description:'Converted from an After Effects selected-layer JSON export.',compatibility:{source:'Cutroom After Effects Exporter',level:'converted-native-approximations',sourceComposition:comp,sourceLayer:layer,unmappedEffects:unsupported,sourceData:j}};
+ pr.id=uid();await idb('presets','put',pr,pr.id);await loadCustom();
+ if(unsupported.length)warnings.push(`${unsupported.length} unsupported or unmapped effect(s) preserved in sourceData; they are not rendered by Cutroom.`);
+ presetReport(`After Effects conversion: ${pr.name}`,rows,warnings,unsupported,()=>applyPreset(pr));
+}
+async function importPreset(file){
+ const b=new Uint8Array(await file.arrayBuffer());
+ if(/\.ffx$/i.test(file.name)||(String.fromCharCode(...b.slice(0,4))==='RIFX'&&String.fromCharCode(...b.slice(8,12))==='FaFX'))return await ffx(file.name,b);
+ let j;try{j=JSON.parse(new TextDecoder().decode(b))}catch{return toast(`${file.name}: invalid JSON or unsupported preset format.`,1)}
+ if(j?.format=='cutroom-project')return loadProject(j.project);if(j?.format==='cutroom-ae-export')return importAEExport(j,file.name);
+ const list=j?.format=='cutroom-preset-pack'?j.presets:j?.format=='cutroom-preset'?[j]:null;
+ if(!Array.isArray(list))return toast(`${file.name}: expected a Cutroom preset or preset pack.`,1);
+ let imported=0,rows=[],unsupported=[],warnings=[];
+ for(const raw of list){
+  if(raw?.sourceOnly&&typeof raw.sourceFileBase64==='string'){
+   try{const bin=atob(raw.sourceFileBase64),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);const pr={...raw};delete pr.sourceFileBase64;pr.id=uid();pr.compatibility={...(pr.compatibility||{}),originalFileKey:'ffx-source:'+pr.id,rawBytes:bytes.length};await idb('media','put',new Blob([bytes],{type:'application/octet-stream'}),pr.compatibility.originalFileKey);await idb('presets','put',pr,pr.id);imported++;rows.push({source:pr.name,target:'Original .ffx source file',kind:'Raw binary preserved; conversion not claimed'});continue}catch(e){warnings.push(`${raw.name||'FFX source'}: could not decode embedded binary source (${e.message}).`);continue}
+  }
+  const v=validatePreset(raw);if(!v){warnings.push(`Skipped malformed preset: ${String(raw?.name||'Unnamed')}`);continue}
+  const pr=v.preset;pr.id=uid();await idb('presets','put',pr,pr.id);imported++;
+  pr.fx.forEach(f=>rows.push({source:`${pr.name}: ${f.meta?.sourceEffectName||f.t}`,target:FX[f.t].n,kind:f.meta?.conversion||'Cutroom-native effect with imported values'}));
+  unsupported.push(...v.unsupported.map(x=>`${pr.name}: ${x}`));if(v.unsupported.length)warnings.push(`${pr.name}: unsupported effects retained in compatibility metadata and not executed.`);
+ }
+ await loadCustom();presetReport(`JSON preset import (${imported} saved)`,rows,warnings,unsupported,null);
+}
+function applyPreset(pr){
+ const c=cur();if(!c||isA(c))return toast('Select a video, image or text clip first.',1);if(pr?.sourceOnly)return toast('This is a preserved .ffx source file, not a converted effect chain. Use the After Effects JSON conversion workflow.',1);
+ const source=Array.isArray(pr.fx)?pr.fx:[],sourceToId=new Map(),valid=source.map((f,i)=>({f,i})).filter(x=>x.f&&FX[x.f.t]);
+ const retime=normalizeRetimeSettings(pr.retimeSettings),map=retime?buildSmoothReverseMap(retime):(normalizeTimeMap(pr.timeMap)||(pr.rev?timeMapFor('reverse'):null));
+ if(!valid.length&&!map&&!Object.keys(pr.transform||{}).length&&!Object.keys(pr.kf||{}).length)return toast('This preset has no supported visual effect, transform or retime curve. Nothing was added.',1);
+ snap('pre');if(pr.transform&&typeof pr.transform==='object')for(const[k,v]of Object.entries(pr.transform))if(['x','y','s','r','o'].includes(k)&&Number.isFinite(+v))c.tr[k]=+v;
+ // Keep the exact source order. Repeated effect types are intentional layers and are not deduplicated.
+ for(const {f,i} of valid){const id=uid();sourceToId.set(i,id);const p={...defs(f.t),...(f.p||{})};for(const[k,v]of Object.entries(FX[f.t].p))p[k]=clamp(Number.isFinite(+p[k])?+p[k]:v[0],v[1],v[2]);c.fx.push({id,t:f.t,p,off:!!f.off,meta:f.meta?structuredClone(f.meta):undefined})}
+ for(const[key,arr]of Object.entries(pr.kf||{})){let kk=key;const m=key.match(/^fx:(\d+):(.+)/);if(m){const id=sourceToId.get(+m[1]);if(!id)continue;kk=`fx:${id}:${m[2]}`}else if(key.startsWith('fx:'))continue;const scaled=pr.kfRel?arr.map(a=>Array.isArray(a)?[a[0]*c.dur,...a.slice(1)]:{...a,t:a.t*c.dur}):arr;c.kf[kk]=normalizeKF(scaled)}
+ if(map){c.timeMap=map;c.timeMapSourceIn=c.in;c.timeMapSourceSpan=c.dur*c.speed;c.timeMapTimelineStart=Number.isFinite(pr.timeMapTimelineStart)?pr.timeMapTimelineStart:0;c.timeMapTimelineSpan=Number.isFinite(pr.timeMapTimelineSpan)?pr.timeMapTimelineSpan:1;c.timeMapSettings=retime;c.rev=false}
+ drawProps();drawTL();fcClear();dirty();sync(T,false);toast(`Applied ${pr.name}: ${valid.length} effects${map?' + retime':''}`)
+}
+function capturePresetThumb(c){try{const x=el('canvas');x.width=320;x.height=180;const g=x.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,x.width,x.height);drawClip(g,c,T,x.width,x.height,x.width/P.w);return x.toDataURL('image/jpeg',.72)}catch{return null}}
+const presetThumbCache=new Map();
+function presetPreviewThumb(pr){
+ try{const c=cur(),cacheKey=`${pr.id||pr.name}:${c?.id||'none'}:${Math.round(T*Math.max(1,P.fps))}:${dirtyN}`;if(presetThumbCache.has(cacheKey))return presetThumbCache.get(cacheKey);const x=el('canvas');x.width=160;x.height=90;const g=x.getContext('2d');g.fillStyle='#101820';g.fillRect(0,0,160,90);
+  if(c&&!isA(c)){const v=structuredClone(c),valid=(pr.fx||[]).filter(f=>FX[f.t]),ids=new Map();valid.forEach(f=>{});for(let i=0;i<(pr.fx||[]).length;i++){const f=pr.fx[i];if(f&&FX[f.t]){const id=uid();ids.set(i,id);v.fx.push({id,t:f.t,p:{...defs(f.t),...f.p},off:!!f.off})}}if(pr.transform&&typeof pr.transform==='object')for(const[k,val]of Object.entries(pr.transform))if(['x','y','s','r','o'].includes(k)&&Number.isFinite(+val))v.tr[k]=+val;for(const[key,arr]of Object.entries(pr.kf||{})){const m=key.match(/^fx:(\d+):(.+)/),scaled=pr.kfRel?arr.map(a=>Array.isArray(a)?[a[0]*v.dur,...a.slice(1)]:{...a,t:a.t*v.dur}):arr;if(m&&ids.has(+m[1]))v.kf[`fx:${ids.get(+m[1])}:${m[2]}`]=normalizeKF(scaled);else if(!key.startsWith('fx:'))v.kf[key]=normalizeKF(scaled)}const rt=normalizeRetimeSettings(pr.retimeSettings);if(rt)v.timeMap=buildSmoothReverseMap(rt);else if(pr.timeMap)v.timeMap=normalizeTimeMap(pr.timeMap);else if(pr.rev)v.timeMap=timeMapFor('reverse');if(v.timeMap){v.timeMapSourceIn=v.in;v.timeMapSourceSpan=v.dur*v.speed;v.timeMapTimelineStart=Number.isFinite(pr.timeMapTimelineStart)?pr.timeMapTimelineStart:0;v.timeMapTimelineSpan=Number.isFinite(pr.timeMapTimelineSpan)?pr.timeMapTimelineSpan:1}g.fillStyle='#000';g.fillRect(0,0,160,90);drawClip(g,v,T,160,90,160/P.w)
+  }else{const gr=g.createLinearGradient(0,0,160,90);gr.addColorStop(0,'#243b54');gr.addColorStop(1,'#0b121c');g.fillStyle=gr;g.fillRect(0,0,160,90);g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=1;for(let y=12;y<90;y+=18){g.beginPath();g.moveTo(0,y);g.lineTo(160,y);g.stroke()}g.strokeStyle='rgba(255,255,255,.45)';g.strokeRect(8,8,144,74);g.beginPath();g.moveTo(80,8);g.lineTo(80,82);g.stroke();g.beginPath();g.arc(80,45,14,0,Math.PI*2);g.stroke();g.fillStyle='#ffb347';g.font='600 9px sans-serif';g.fillText('CUTROOM · FOOTBALL EDIT',12,22);g.fillStyle='#fff';g.font='600 12px sans-serif';g.fillText(String(pr.name||'Preset').slice(0,24),12,68)}
+  const data=x.toDataURL('image/jpeg',.72);if(presetThumbCache.size>120)presetThumbCache.clear();presetThumbCache.set(cacheKey,data);return data
+ }catch{return null}
+}
+function presetFromClip(c,name){
+ const idx=Object.fromEntries(c.fx.map((f,i)=>[f.id,i])),kf={};for(const k in c.kf){if(!c.kf[k].length)continue;const m=k.match(/^fx:([^:]+):(.+)/),key=m?`fx:${idx[m[1]]}:${m[2]}`:k;kf[key]=c.kf[k].map(x=>({...x,t:clamp(x.t/Math.max(.001,c.dur),0,1)}))}
+ return{format:'cutroom-preset',version:3,name,cat:'Custom',fx:c.fx.map(f=>({t:f.t,p:{...f.p},off:!!f.off,meta:f.meta?structuredClone(f.meta):undefined})),kf,kfRel:true,timeMap:c.timeMap?structuredClone(c.timeMap):(c.rev?timeMapFor('reverse'):null),timeMapTimelineStart:c.timeMap?c.timeMapTimelineStart||0:0,timeMapTimelineSpan:c.timeMap?(Number.isFinite(c.timeMapTimelineSpan)?c.timeMapTimelineSpan:1):1,retimeSettings:normalizeRetimeSettings(c.timeMapSettings),rev:!!c.rev,transform:{...c.tr},folder:'',description:'Saved from selected clip',thumbnail:capturePresetThumb(c),compatibility:null}
+}
+async function savePresetObject(pr){pr.updatedAt=Date.now();await idb('presets','put',pr,pr.id);await loadCustom();return pr}
+async function openFreshCutroomDB(){return await new Promise((resolve,reject)=>{const q=indexedDB.open('cutroom',2);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
+async function runPresetStorageTest(){
+ const id='selftest-'+uid(),sample={id,format:'cutroom-preset',version:3,name:'Storage self-test',cat:'Test',fx:[{t:'color',p:{contrast:27,sat:14,bright:3},off:false},{t:'rgb',p:{off:11,ang:35},off:false}],kf:{'fx:0:contrast':[{t:0,v:0,e:'out'},{t:1,v:27,e:'bezier'}],'fx:1:off':[{t:0,v:0,e:'linear'},{t:1,v:11,e:'hold'}],'tr.s':[{t:0,v:100,e:'inout'},{t:1,v:118,e:'out'}]},kfRel:true,timeMap:buildSmoothReverseMap({reverseDuration:.22,forwardSpeed:1,reverseSpeed:.85}),timeMapTimelineStart:0,timeMapTimelineSpan:1,retimeSettings:{type:'smoothReverse',reverseDuration:.22,forwardSpeed:1,reverseSpeed:.85},transform:{x:8,y:-4,s:112,r:3,o:92},folder:'test-folder',description:'round trip',thumbnail:'data:image/jpeg;base64,dGVzdA==',compatibility:{source:'test'}};
+ const results=[];let ok=true;const check=(label,v)=>{results.push({label,pass:!!v});if(!v)ok=false};
+ try{await idb('presets','put',sample,id);const fresh=await openFreshCutroomDB();const loaded=await new Promise((resolve,reject)=>{const q=fresh.transaction('presets','readonly').objectStore('presets').get(id);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});fresh.close();
+  check('IndexedDB save → fresh connection → reload → read',!!loaded&&loaded.name===sample.name);
+  const validated=validatePreset(loaded);check('kfRel survives schema validation',validated?.preset.kfRel===true);check('Every effect and its order/parameters survives',validated?.preset.fx.length===2&&validated.preset.fx[0].t==='color'&&validated.preset.fx[0].p.contrast===27&&validated.preset.fx[0].p.sat===14&&validated.preset.fx[1].t==='rgb'&&validated.preset.fx[1].p.off===11&&validated.preset.fx[1].p.ang===35);check('Keyframe values and interpolation survive',validated?.preset.kf?.['fx:0:contrast']?.[1]?.v===27&&validated.preset.kf['fx:0:contrast'][1].e==='bezier'&&validated.preset.kf['fx:1:off']?.[1]?.e==='hold'&&validated.preset.kf['tr.s']?.[1]?.v===118);check('Retime settings, transform and thumbnail survive',!!validated?.preset.timeMap&&validated.preset.retimeSettings?.reverseDuration===.22&&validated.preset.transform?.s===112&&validated.preset.thumbnail===sample.thumbnail);
+  const map=buildSmoothReverseMap(sample.retimeSettings),values=Array.from({length:101},(_,i)=>mapValue(map,i/100));check('Smooth Reverse contains a backwards source-time interval',values.some((v,i)=>i>0&&v<values[i-1]-.0001));
+  const src=document.createElement('canvas');src.width=16;src.height=16;const sg=src.getContext('2d');sg.fillStyle='#305080';sg.fillRect(0,0,16,16);const before=sg.getImageData(8,8,1,1).data[0],out=document.createElement('canvas');out.width=16;out.height=16;const og=out.getContext('2d');FX.color.f(og,src,{...defs('color'),contrast:45,sat:30},16,16);const after=og.getImageData(8,8,1,1).data[0];check('Native effect rendering changes synthetic frame pixels',Math.abs(after-before)>1);
+ }catch(e){check('Self-test runtime completed',false);results.push({label:e.message,pass:false})}finally{await idb('presets','delete',id).catch(()=>{});await loadCustom()}
+ const body=el('div',null,`<h3>Preset storage / rendering self-test</h3><p><b>${results.filter(x=>x.pass).length} / ${results.length} checks passed</b></p>${results.map(x=>`<p style="color:${x.pass?'#80c89d':'#ef8888'}">${x.pass?'✓':'✕'} ${esc(x.label)}</p>`).join('')}<p class="hint">The test checks persistence across a fresh IndexedDB connection, schema validation, effect-chain pixel output and the mathematical reverse interval. It does not claim to decode a proprietary FFX or test an actual media export without an imported source clip.</p>`);modal(body,[['Close']]);toast(ok?'Preset self-test passed.':'Preset self-test found an issue.',!ok)
+}
+async function showPresetPreview(pr){
+ if(pr?.sourceOnly){const key=pr.compatibility?.originalFileKey,body=el('div',null,`<h3>${esc(pr.name)}</h3><p class="hint">Original .ffx source preserved · ${Number(pr.compatibility?.rawBytes||0).toLocaleString()} bytes · no guessed effects or parameters.</p><p class="hint">Convert this preset by applying it to a layer in After Effects and importing a JSON export made with Cutroom_AE_Exporter.jsx.</p>`);modal(body,[['Close'],['Download original .ffx',async()=>{const blob=await idb('media','get',key);if(blob)await save(pr.name.replace(/[^\w-]+/g,'_')+'.ffx',blob);else toast('Original FFX source is missing from storage.',1)}]]);return}
+ const c=cur();if(!c||isA(c))return toast('Select a video or image clip to preview this preset.',1);const preview=structuredClone(c),valid=(pr.fx||[]).filter(f=>FX[f.t]),ids=valid.map(()=>uid());if(pr.transform&&typeof pr.transform==='object')for(const[k,v]of Object.entries(pr.transform))if(['x','y','s','r','o'].includes(k)&&Number.isFinite(+v))preview.tr[k]=+v;
+ valid.forEach((f,i)=>preview.fx.push({id:ids[i],t:f.t,p:{...defs(f.t),...f.p},off:!!f.off}));
+ for(const[key,arr]of Object.entries(pr.kf||{})){const m=key.match(/^fx:(\d+):(.+)/),scaled=pr.kfRel?arr.map(a=>Array.isArray(a)?[a[0]*preview.dur,...a.slice(1)]:{...a,t:a.t*preview.dur}):arr;if(m&&ids[+m[1]])preview.kf[`fx:${ids[+m[1]]}:${m[2]}`]=normalizeKF(scaled);else if(!key.startsWith('fx:'))preview.kf[key]=normalizeKF(scaled)}
+ const retime=normalizeRetimeSettings(pr.retimeSettings);if(retime)preview.timeMap=buildSmoothReverseMap(retime);else if(pr.timeMap)preview.timeMap=normalizeTimeMap(pr.timeMap);else if(pr.rev)preview.timeMap=timeMapFor('reverse');if(preview.timeMap){preview.timeMapSourceIn=preview.in;preview.timeMapSourceSpan=preview.dur*preview.speed;preview.timeMapTimelineStart=Number.isFinite(pr.timeMapTimelineStart)?pr.timeMapTimelineStart:0;preview.timeMapTimelineSpan=Number.isFinite(pr.timeMapTimelineSpan)?pr.timeMapTimelineSpan:1}
+ const effectInfo=valid.map(f=>`<div><b>${esc(FX[f.t].n)}</b><small style="display:block;color:var(--mu)">${Object.entries(f.p||{}).map(([k,v])=>`${esc(LBL[k]||k)}: ${esc(v)}`).join(' · ')||'Default values'}${f.off?' · bypassed':''}</small></div>`).join('');
+ const body=el('div');body.innerHTML=`<h3>${esc(pr.name)}</h3><p class="hint">${esc(pr.cat||'Uncategorized')} · ${valid.length} effects${preview.timeMap?' · animated time remap':''}${pr.transform?' · transform':''}</p><div style="display:grid;gap:5px;margin:8px 0">${effectInfo||'<p class="hint">Time remap only</p>'}</div>`;
+ const shot=el('canvas');shot.width=480;shot.height=270;shot.style.cssText='width:100%;max-height:42vh;object-fit:contain;background:#000;border:1px solid var(--ln);border-radius:6px';body.append(shot);
+ try{const media=P.media[preview.media];if(media?.type==='video'){const video=elFor(preview);video._cutroomFps=media.fps||P.fps||30;await waitVideoFrameForExport(video,exportSourceTime(preview,T,media),media.name)}else sync(T,false);const g=shot.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,shot.width,shot.height);drawClip(g,preview,T,shot.width,shot.height,shot.width/P.w)}catch(e){body.append(el('p','hint',`Preview unavailable at this frame: ${esc(e.message||'media decode failed')}`))}
+ const restoreSource=()=>{sync(T,false);dirty()};modal(body,[['Close',restoreSource],['Apply preset',()=>{restoreSource();applyPreset(pr)}]]);
+}
+/* ---------- state ---------- */
+const newProj=()=>({name:'Untitled',w:1920,h:1080,format:'landscape',fit:'contain',fps:30,tracks:[{id:'T1',n:'Text',k:'t'},{id:'V2',n:'Video 2',k:'v'},{id:'V1',n:'Video 1',k:'v'},{id:'A1',n:'Audio 1',k:'a'},{id:'A2',n:'Audio 2',k:'a'}],clips:[],media:{}});
+let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=.5,qualityMode='auto',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
+const blobs={},urls={},els={},gains={},peaks={},HW=132,cur=()=>P.clips.find(c=>c.id==sel),dirty=()=>dirtyN=1,endT=()=>Math.max(0,...P.clips.map(c=>c.start+c.dur)),trk=id=>P.tracks.find(t=>t.id==id);
+const isA=c=>!c.text&&P.media[c.media]?.type=='audio',kind=c=>c.text?'t':isA(c)?'a':'v',url=id=>urls[id]??=URL.createObjectURL(blobs[id]);
+const anySolo=()=>P.tracks.some(t=>t.solo),live=tr=>!tr.hide&&(!anySolo()||tr.solo),audible=tr=>!tr.mute&&(!anySolo()||tr.solo);
+function snap(tag='x'){const n=Date.now();if(tag==lastTag&&n-lastT<700){lastT=n;return}lastTag=tag;lastT=n;hist.push(JSON.stringify([P.tracks,P.clips]));if(hist.length>150)hist.shift();redoS=[]}
+function restore(s){[P.tracks,P.clips]=JSON.parse(s);if(!cur())sel=null;gc();drawTL();drawProps();dirty()}
+const undo=()=>{if(hist.length){redoS.push(JSON.stringify([P.tracks,P.clips]));restore(hist.pop());lastTag=''}},redo=()=>{if(redoS.length){hist.push(JSON.stringify([P.tracks,P.clips]));restore(redoS.pop());lastTag=''}};
+function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();delete els[id];delete gains[id];delete retimeFrames[id]}}
+/* ---------- media manager ---------- */
+function ensureAC(){if(!AC){AC=new AudioContext();MD=AC.createMediaStreamDestination();master=AC.createGain();master.connect(AC.destination);master.connect(MD)}return AC}
+const waitEv=(e,ev,ms=9000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout')),ms);e.addEventListener(ev,()=>{clearTimeout(t);res()},{once:true});e.addEventListener('error',()=>{clearTimeout(t);rej(new Error('decode'))},{once:true})});
+const thumbOf=(src,w,h)=>{const c=el('canvas');c.width=160;c.height=90;const g=c.getContext('2d'),s=Math.min(160/w,90/h);g.drawImage(src,(160-w*s)/2,(90-h*s)/2,w*s,h*s);return c.toDataURL('image/jpeg',.6)};
+/* ---------- MP4/MOV inspector: names the real codecs inside a file ---------- */
+const VCODEC={avc1:'H.264',avc3:'H.264',hvc1:'H.265 (HEVC)',hev1:'H.265 (HEVC)',dvh1:'Dolby Vision (HEVC)',dvhe:'Dolby Vision (HEVC)',av01:'AV1',vp09:'VP9',mp4v:'MPEG-4 Part 2',apch:'ProRes 422 HQ',apcn:'ProRes 422',apcs:'ProRes 422 LT',apco:'ProRes 422 Proxy',ap4h:'ProRes 4444',ap4x:'ProRes 4444 XQ',jpeg:'Motion JPEG',mjpa:'Motion JPEG',s263:'H.263'};
+const ACODEC={mp4a:'AAC','ac-3':'Dolby AC-3','ec-3':'Dolby E-AC-3',alac:'Apple Lossless',Opus:'Opus',sowt:'PCM',twos:'PCM',lpcm:'PCM',ipcm:'PCM',fLaC:'FLAC'};
+const ACAN={mp4a:'audio/mp4; codecs="mp4a.40.2"','ac-3':'audio/mp4; codecs="ac-3"','ec-3':'audio/mp4; codecs="ec-3"',alac:'audio/mp4; codecs="alac"',Opus:'audio/mp4; codecs="opus"',fLaC:'audio/mp4; codecs="flac"'};
+async function mp4Probe(file){
+ try{
+  const size=file.size,rd=async(o,n)=>new DataView(await file.slice(o,o+n).arrayBuffer());let o=0,moov=null;
+  while(o+8<=size){const h=await rd(o,16),ty=String.fromCharCode(h.getUint8(4),h.getUint8(5),h.getUint8(6),h.getUint8(7));let sz=h.getUint32(0),hl=8;if(sz===1){sz=Number(h.getBigUint64(8));hl=16}else if(sz===0)sz=size-o;if(sz<hl)break;if(ty==='moov'){if(sz>96e6)return null;moov={o:o+hl,n:sz-hl};break}o+=sz}
+  if(!moov)return{error:'No moov atom found — the file looks truncated or is not a standard MP4/MOV.'};
+  const b=new Uint8Array(await file.slice(moov.o,moov.o+moov.n).arrayBuffer()),dv=new DataView(b.buffer),f4=i=>String.fromCharCode(b[i],b[i+1],b[i+2],b[i+3]),tracks=[];
+  const walk=(s,e)=>{let i=s;while(i+8<=e){let sz=dv.getUint32(i),ty=f4(i+4),hl=8;if(sz===1){sz=Number(dv.getBigUint64(i+8));hl=16}else if(sz===0)sz=e-i;if(sz<hl||i+sz>e)break;
+   const t=tracks[tracks.length-1];
+   if(ty==='trak'){tracks.push({});walk(i+hl,i+sz)}else if(ty==='mdia'||ty==='minf'||ty==='stbl')walk(i+hl,i+sz);
+   else if(ty==='hdlr'&&t&&!t.kind)t.kind=f4(i+hl+8);
+   else if(ty==='stsd'&&t){const en=i+hl+8;t.fourcc=f4(en+4);if(t.kind==='vide'){t.w=dv.getUint16(en+32);t.h=dv.getUint16(en+34)}}
+   i+=sz}};
+  walk(0,b.length);
+  const v=tracks.find(t=>t.kind==='vide'),a=tracks.find(t=>t.kind==='soun');
+  return{v:v&&{fourcc:v.fourcc,name:VCODEC[v.fourcc]||v.fourcc,w:v.w,h:v.h},a:a&&{fourcc:a.fourcc,name:ACODEC[a.fourcc]||a.fourcc}}
+ }catch(e){return null}
+}
+function describeProbe(p){if(!p)return'';if(p.error)return p.error;const s=[];if(p.v)s.push(`video ${p.v.name}${p.v.w?` ${p.v.w}×${p.v.h}`:''}`);if(p.a)s.push(`audio ${p.a.name}`);return s.length?`This file contains ${s.join(', ')}. `:''}
+function audioWarning(p){if(!p?.a)return'';const q=ACAN[p.a.fourcc];if(p.a.name==='PCM')return'';if(q&&!document.createElement('audio').canPlayType(q))return`Its ${p.a.name} audio track is not supported by this browser and will be silent. `;return''}
+
+async function addMedia(file){const ext=(file.name.split('.').pop()||'').toLowerCase(),type=file.type.startsWith('image')||/png|jpe?g|gif|webp/.test(ext)?'image':file.type.startsWith('audio')||/wav|mp3|aac|m4a|ogg/.test(ext)?'audio':'video';
+let m=Object.values(P.media).find(x=>x.name==file.name&&!blobs[x.id]);const relink=!!m;m??={id:uid(),name:file.name,type,size:file.size};blobs[m.id]=file;delete urls[m.id];
+try{if(type=='image'){const i=new Image();i.src=url(m.id);await waitEv(i,'load');m.w=i.naturalWidth;m.h=i.naturalHeight;m.dur=5;m.thumb=thumbOf(i,m.w,m.h)}
+else{const v=el(type=='video'?'video':'audio');v.muted=true;v.preload='auto';v.src=url(m.id);await waitEv(v,'loadedmetadata');m.dur=v.duration;if(type=='video'){m.w=v.videoWidth;m.h=v.videoHeight;if(!m.w)throw new Error('decode');v.currentTime=Math.min(.5,m.dur/2);await waitEv(v,'seeked');m.thumb=thumbOf(v,m.w,m.h);m.fps=await estFps(v)}}
+}catch(e){delete blobs[m.id];const pr=type=='video'?await mp4Probe(file):null,hint=pr&&pr.v&&/^(hvc1|hev1|dvh1|dvhe)$/.test(pr.v.fourcc)?'H.265 needs OS/browser HEVC support (Safari, or Chrome/Edge with hardware HEVC). ':'';toast(`"${file.name}" can't be decoded by this browser. ${describeProbe(pr)}${hint}Convert it to H.264 MP4 with: ffmpeg -i "${file.name}" -c:v libx264 -crf 16 -c:a aac out.mp4  (or HandBrake), then import again. The original file is never modified.`,1);return}
+if(type=='video'){const pr=await mp4Probe(file);if(pr){m.vcodec=pr.v?.name;m.acodec=pr.a?.name;const w=audioWarning(pr);if(w)toast(`${file.name}: ${w}`,1)}}
+P.media[m.id]=m;idb('media','put',file,m.id).catch(()=>{});analyze(m);drawLeft();drawTL();toast(relink?'Relinked '+m.name:'Imported '+m.name)}
+async function estFps(v){if(!v.requestVideoFrameCallback)return null;return new Promise(res=>{const ts=[];const cb=(n,md)=>{ts.push(md.mediaTime);if(ts.length<8)v.requestVideoFrameCallback(cb);else{v.pause();const d=(ts[7]-ts[1])/6;res(d>0?Math.round(1/d*100)/100:null)}};v.requestVideoFrameCallback(cb);v.play().catch(()=>res(null));setTimeout(()=>{v.pause();res(null)},1500)})}
+async function analyze(m){if(m.type=='image'||peaks[m.id])return;try{ensureAC();const buf=await AC.decodeAudioData(await blobs[m.id].arrayBuffer()),ch=buf.getChannelData(0),n=Math.min(Math.ceil(buf.duration*40),8000),sz=Math.floor(ch.length/n)||1,pk=new Uint8Array(n);for(let i=0;i<n;i++){let mx=0;for(let j=i*sz;j<(i+1)*sz&&j<ch.length;j+=8)mx=Math.max(mx,Math.abs(ch[j]));pk[i]=Math.min(255,mx*300)}peaks[m.id]=pk;drawTL()}catch{}}
+async function importFiles(fs){for(const f of fs){if(/\.(ffx|json)$/i.test(f.name))await importPreset(f);else await addMedia(f)}}
+function elFor(c){const m=P.media[c.media];if(!m||!blobs[m.id])return null;let e=els[c.id];if(!e){if(m.type=='image'){e=new Image();e.src=url(m.id)}else{e=el(m.type=='video'?'video':'audio');e.src=url(m.id);e.preload='auto';e.playsInline=true;e.addEventListener('seeking',()=>{e._cutroomSeeking=true});e.addEventListener('seeked',()=>{e._cutroomSeeking=false;dirty()});e.onerror=()=>{e._cutroomSeeking=false;dirty();toast(`Playback error for ${m.name}`,1)}}els[c.id]=e}return e}
+/* ---------- clips ---------- */
+function mkClip(o){return{id:uid(),track:'V1',media:null,start:0,in:0,dur:5,speed:1,rev:false,vol:100,fi:0,fo:0,tr:{x:0,y:0,s:100,r:0,o:100},fx:[],kf:{},tin:null,timeMap:null,timeMapSettings:null,...o}}
+function addClip(mid,tid,start){const m=P.media[mid];if(!m||!blobs[mid])return toast('Media file is missing. Re-import it.',1);const k=m.type=='audio'?'a':'v';let t=trk(tid);if(!t||t.k!=k||t.lock)t=P.tracks.find(x=>x.k==k&&!x.lock);if(!t)return toast('No unlocked '+(k=='a'?'audio':'video')+' track available.',1);snap('add');const c=mkClip({track:t.id,media:mid,start:Math.max(0,start),dur:m.dur||5});P.clips.push(c);sel=c.id;drawTL();drawProps();dirty()}
+function addText(an){const t=P.tracks.find(x=>x.k=='t'&&!x.lock);if(!t)return;snap('add');const c=mkClip({track:t.id,start:T,dur:3,text:{s:'Your title',size:120,col:'#ffffff',font:'IBM Plex Sans',b:1,i:0,sw:0,sc:'#000000',sh:0,al:'center',ls:0,an}});P.clips.push(c);sel=c.id;drawTL();drawProps();dirty()}
+function split(){const cs=sel?[cur()]:P.clips.filter(c=>T>c.start+.02&&T<c.start+c.dur-.02&&!trk(c.track).lock);let n=0;cs.filter(Boolean).forEach(c=>{const d1=T-c.start;if(d1<=.02||d1>=c.dur-.02||trk(c.track).lock)return;if(!n)snap('split');n++;const r=JSON.parse(JSON.stringify(c));r.id=uid();r.start=T;r.dur=c.dur-d1;r.tin=null;for(const k in r.kf)r.kf[k]=r.kf[k].map(x=>({...x,t:x.t-d1}));const oldDur=c.dur,oldMap=normalizeTimeMap(c.timeMap),splitU=d1/oldDur;if(oldMap){const baseIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,baseSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:oldDur*c.speed),mapStart=Number.isFinite(c.timeMapTimelineStart)?c.timeMapTimelineStart:0,mapSpan=Number.isFinite(c.timeMapTimelineSpan)?c.timeMapTimelineSpan:1;c.timeMap=oldMap;r.timeMap=oldMap.map(x=>({...x}));c.timeMapSourceIn=r.timeMapSourceIn=baseIn;c.timeMapSourceSpan=r.timeMapSourceSpan=baseSpan;c.timeMapTimelineStart=mapStart;c.timeMapTimelineSpan=mapSpan*splitU;r.timeMapTimelineStart=mapStart+mapSpan*splitU;r.timeMapTimelineSpan=mapSpan*(1-splitU);c.dur=d1;r.dur=oldDur-d1}else if(c.rev){c.in=c.in+(oldDur-d1)*c.speed;c.dur=d1}else{r.in=c.in+d1*c.speed;c.dur=d1}c.fo=0;r.fi=0;P.clips.push(r)});if(n){drawTL();dirty()}else toast('Move the playhead over a clip to split it.')}
+function del(){const c=cur();if(!c||trk(c.track).lock)return;snap('del');P.clips=P.clips.filter(x=>x!=c);sel=null;gc();drawTL();drawProps();dirty()}
+function dup(){const c=cur();if(!c)return;snap('dup');const r=JSON.parse(JSON.stringify(c));r.id=uid();r.start=c.start+c.dur;P.clips.push(r);sel=r.id;drawTL();drawProps()}
+/* ---------- rendering ---------- */
+function drawText(d,c,lt,W,H){const x=c.text,k=W/P.w;let s=x.s,a=1,ox=0,oy=0,sc=1,u=clamp(lt/.6,0,1);switch(x.an){case'pop':sc=EASE.bezier(u);break;case'fade':a=u;break;case'slide':ox=(1-EASE.out(u))*-300;a=u;break;case'type':s=s.slice(0,Math.floor(lt*14));break;case'bounce':oy=-Math.abs(Math.sin(lt*7))*60*Math.max(0,1-lt/1.5);break;case'glitch':if(Math.random()<.3)ox=(Math.random()-.5)*30;break;case'zoom':sc=3-2*EASE.out(u);a=u}
+d.save();d.translate(W/2+ox*k,H/2+oy*k);d.scale(sc,sc);d.globalAlpha=a;d.font=`${x.i?'italic ':''}${x.b?'700':'400'} ${x.size*k}px "${x.font}", sans-serif`;d.textAlign=x.al;d.textBaseline='middle';d.letterSpacing=x.ls*k+'px';if(x.sh){d.shadowColor='rgba(0,0,0,.7)';d.shadowBlur=x.sh*k;d.shadowOffsetY=x.sh/2*k}
+const tx=x.al=='left'?-W*.4:x.al=='right'?W*.4:0,ls=s.split('\n');ls.forEach((ln,i)=>{const y=(i-(ls.length-1)/2)*x.size*1.2*k;if(x.sw){d.lineWidth=x.sw*k;d.strokeStyle=x.sc;d.lineJoin='round';d.strokeText(ln,tx,y)}d.fillStyle=x.col;d.fillText(ln,tx,y)});d.restore()}
+function drawClip(ctx,c,t,W,H,k){const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);if(c.text)drawText(a,c,lt,W,H);else{const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;const s=(P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh)),x=(W-sw*s)/2,y=(H-sh*s)/2,retimed=!!(c.timeMap||c.rev||hasPT(c)),cache=retimeFrames[c.id];if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){if(retimed&&cache&&cache.width===W&&cache.height===H)a.drawImage(cache,0,0);else return}else{a.drawImage(e,x,y,sw*s,sh*s);if(retimed){let fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){fc=retimeFrames[c.id]=document.createElement('canvas');fc.width=W;fc.height=H}const fg=fc.getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)}}}
+let src=A,dst=sc('B',W,H),batch=[];
+const cpu=b=>{const d=dst.getContext('2d');d.setTransform(1,0,0,1,0,0);d.clearRect(0,0,W,H);d.filter='none';d.globalAlpha=1;d.globalCompositeOperation='source-over';d.imageSmoothingEnabled=true;d.save();FX[b.t].f(d,src,b.p,W,H,t);d.restore();[src,dst]=[dst,src]};
+const flush=()=>{if(!batch.length)return;const b=batch;batch=[];let ok=false;try{ok=glRun(src,b,W,H,t,dst)}catch(e){glFatal(e)}if(ok)[src,dst]=[dst,src];else for(const x of b)cpu(x)};
+for(const f of c.fx){if(f.off||!FX[f.t])continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
+flush();let o=get(c,'tr.o',lt)/100,s=get(c,'tr.s',lt)/100,r=get(c,'tr.r',lt)*rad,x=get(c,'tr.x',lt)*k,y=get(c,'tr.y',lt)*k,bl=0,fl=0;if(c.tin&&lt<c.tin.d){const m=TR[c.tin.t][1](lt/c.tin.d);o*=m.o??1;s*=m.s??1;r+=(m.r??0)*rad;x+=(m.x??0)*W;y+=(m.y??0)*W;bl=m.bl??0;fl=m.fl??0}ctx.save();ctx.globalAlpha=clamp(o,0,1);ctx.translate(W/2+x,H/2+y);ctx.rotate(r);ctx.scale(s,s);if(bl)ctx.filter=`blur(${bl*k}px)`;ctx.drawImage(src,-W/2,-H/2);ctx.restore();if(fl>0){ctx.globalAlpha=fl;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
+function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a)drawClip(ctx,c,t,W,H,k)}}
+function requestVideoSeek(e,st,fps){
+ const frame=Math.max(0,Math.round(st*fps)),target=frame/fps;e._cutroomDesiredTime=target;
+ // Never interrupt an in-flight decode seek. The render loop draws the last
+ // completed frame while it waits, then schedules the newest target afterwards.
+ if(e.seeking||e._cutroomSeeking)return false;
+ const currentFrame=Math.max(0,Math.round((Number(e.currentTime)||0)*fps));
+ if(currentFrame===frame){e._cutroomRequestedFrame=frame;return false}
+ e.pause();e._cutroomRequestedFrame=frame;e._cutroomSeeking=true;
+ try{e.currentTime=target;if(Math.round((Number(e.currentTime)||0)*fps)===currentFrame&&Math.abs(target-(Number(e.currentTime)||0))<.25/fps)e._cutroomSeeking=false}
+ catch{e._cutroomSeeking=false;return false}return true
+}
+function sync(t,play,exportMode=false){for(const c of P.clips){const tr=trk(c.track),m=P.media[c.media];if(c.text||!m||m.type==='image')continue;if(exportMode&&m.type==='video'&&(c.timeMap||c.rev||hasPT(c)))continue;const e=elFor(c);if(!e)continue;const lt=t-c.start,act=lt>=0&&lt<c.dur;if(AC&&!gains[c.id]){const g=AC.createGain();try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}}
+if(!act){if(!e.paused)e.pause();e._cutroomRetimeMode='inactive';continue}
+const fps=Math.max(1,m.fps||P.fps||30),mp=mappedProgress(c,lt),span=Math.max(0,c.dur*c.speed),mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;let st;if(mp!==null){st=mapIn+mp*mapSpan;if(mp>=.999999)st-=frame}else if(c.rev)st=c.in+Math.max(0,span-qt(c,lt)*c.speed-frame);else st=c.in+qt(c,lt)*c.speed;st=clamp(st,0,Math.max(0,(m.dur||1e9)-frame));
+const gv=get(c,'vol',lt)/100*(c.fi&&lt<c.fi?lt/c.fi:1)*(c.fo&&c.dur-lt<c.fo?(c.dur-lt)/c.fo:1)*(audible(tr)&&(tr.k==='a'||live(tr))?1:0);if(gains[c.id])gains[c.id].gain.value=gv;else e.volume=clamp(gv,0,1);
+const remapped=mp!==null||c.rev||hasPT(c);if(!remapped){if(play){const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;if(e.paused)e.play().catch(()=>{});if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}}else{e.pause();requestVideoSeek(e,st,fps)}e._cutroomRetimeMode='normal';continue}
+// Deterministic retime path: pause the media element and seek to the mapped
+// source frame. This supports positive, zero and negative parts of one curve.
+// The main loop renders FIRST, then calls sync(), so a completed decoded frame
+// is shown before the next seek begins. This prevents the old frozen-cache bug.
+const rate=hasPT(c)?mappedSpeed(c,lt):(mp!==null?mappedSpeed(c,lt):(c.rev?-c.speed:c.speed));
+e.pause();e._cutroomRetimeMode=rate<-.025?'reverse':rate>.025?'forward-step':'hold';
+if(play)e.playbackRate=1;requestVideoSeek(e,st,fps);continue
+}}
+const cv=$('#cv'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
+function resizeCv(){fcClear();const q=exporting?1:Q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
+function zoomCss(){if(zoomV){cv.style.width=P.w*zoomV+'px';cv.style.height=P.h*zoomV+'px';cv.style.maxWidth=cv.style.maxHeight='none'}else{cv.style.width=P.w+'px';cv.style.height=P.h+'px';cv.style.maxWidth=cv.style.maxHeight='100%'}}
+const AUTO_LEVELS=[.125,.25,.375,.5,.65,.8];
+function setAutoQuality(next){Q=next;resizeCv();const pct=Math.round(Q*100);$('#fps').title=`Automatic preview resolution: ${pct}%`;toast(`Preview quality adjusted to ${pct}% to keep playback responsive.`)}
+function adaptPreviewQuality(ms){if(qualityMode!=='auto'||exporting)return;renderCost=renderCost?renderCost*.82+ms*.18:ms;if(renderCost>30){slowFrames++;fastFrames=0}else if(renderCost<13){fastFrames++;slowFrames=0}else{slowFrames=Math.max(0,slowFrames-1);fastFrames=0}if(slowFrames>=3){const i=AUTO_LEVELS.indexOf(Q),next=i>0?AUTO_LEVELS[i-1]:Q;slowFrames=0;if(next!==Q)setAutoQuality(next)}else if(fastFrames>=120){const i=AUTO_LEVELS.indexOf(Q),next=i>=0&&i<AUTO_LEVELS.length-1?AUTO_LEVELS[i+1]:Q;fastFrames=0;if(next!==Q)setAutoQuality(next)}}
+function previewComplexity(t){let score=0;for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||isA(c))continue;for(const f of c.fx){if(f.off)continue;score+=glDiscount(f.t)*({dirblur:2,radblur:2,zoomblur:2,glow:2,ccrays:3,cckal:3,ccrep:3,green:3,sharpen:2,edge:2,wave:2}[f.t]||1)}}return score}
+function retimeBusyAt(t){for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||!(c.timeMap||c.rev||hasPT(c)))continue;const tr=trk(c.track);if(!tr||!live(tr)||isA(c))continue;const e=els[c.id];if(e&&(e.seeking||e._cutroomSeeking))return true}return false}
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.1,(now-last)/1000);last=now;
+if(playing&&!exporting){if(!retimeBusyAt(T))T+=dt;const e=endT();if(T>=e){T=e;playing=false;sync(T,false);$('#bP').textContent='▶ Play'}}
+const heavy=playing&&!exporting&&qualityMode==='auto'&&previewComplexity(T)>=3,interval=heavy?1000/30:0,drawDue=!heavy||dirtyN>0||now-lastPreviewAt>=interval;
+if(!exporting&&(playing||dirtyN>0)&&drawDue){const started=performance.now();renderPreview();const cost=performance.now()-started;dirtyN=0;adaptPreviewQuality(cost);lastPreviewAt=now;fcount++;sync(T,playing)}
+if(now-ftime>1000){$('#fps').textContent=[playing?`${Math.round(fcount*1000/(now-ftime))} fps · preview ${Math.round(Q*100)}%`:'',perfLabel()].filter(Boolean).join(' · ');fcount=0;ftime=now}
+const ph=$('#ph');if(ph)ph.style.transform=`translateX(${HW+T*Z}px)`;$('#tc').textContent=tcode(T);if(playing){const s=$('#tscroll');if(HW+T*Z>s.scrollLeft+s.clientWidth-40)s.scrollLeft=HW+T*Z-120}
+if(playing&&(loop.n=(loop.n||0)+1)%4==0)syncProps()}
+const tcode=t=>{const f=Math.round(t*P.fps),fr=f%P.fps,s=Math.floor(f/P.fps);return[Math.floor(s/3600),Math.floor(s/60)%60,s%60,fr].map(n=>String(n).padStart(2,'0')).join(':')};
+function seek(t){playing=false;$('#bP').textContent='▶ Play';T=clamp(Math.round(t*P.fps)/P.fps,0,1e5);dirty();sync(T,false);syncProps()}
+async function togglePlay(){if(exporting)return;if(playing){playing=false;$('#bP').textContent='▶ Play';sync(T,false);return}ensureAC();await AC.resume();if(T>=endT()-.01)T=0;playing=true;$('#bP').textContent='⏸ Pause'}
+/* ---------- timeline UI ---------- */
+function drawTL(){const tl=$('#tlin'),W=Math.max(endT()+30,60)*Z;tl.innerHTML='';tl.style.width=HW+W+'px';const ru=el('div','rul');ru.style.width=W+'px';const step=[.1,.5,1,2,5,10,30,60,300].find(s=>s*Z>=70)||600;for(let t=0;t<W/Z;t+=step){const i=el('i',null,tcode(t).slice(3));i.style.left=t*Z+'px';ru.append(i)}
+ru.onpointerdown=e=>{const r=ru.getBoundingClientRect(),mv=ev=>seek((ev.clientX-r.left)/Z);mv(e);const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)};tl.append(ru);
+P.tracks.forEach(tr=>{const row=el('div','trow'),h=el('div','th',`<span>${esc(tr.n)}</span>`),bs=el('div');[['M','mute','Mute'],['S','solo','Solo'],['L','lock','Lock'],...(tr.k!='a'?[['H','hide','Hide']]:[])].forEach(([l,k,ti])=>{const b=el('button',tr[k]?'on':'',l);b.title=ti;b.onclick=()=>{snap('trk');tr[k]=!tr[k];drawTL();dirty()};bs.append(b)});h.append(bs);
+const lane=el('div','lane');lane.style.width=W+'px';lane.dataset.t=tr.id;lane.ondragover=e=>e.preventDefault();lane.onpointerdown=e=>{if(e.target==lane){sel=null;drawTL();drawProps();seek((e.clientX-lane.getBoundingClientRect().left)/Z)}};
+lane.ondrop=e=>{e.preventDefault();const d=e.dataTransfer.getData('text/plain');if(d.startsWith('m:'))addClip(d.slice(2),tr.id,(e.clientX-lane.getBoundingClientRect().left)/Z);};
+P.clips.filter(c=>c.track==tr.id).forEach(c=>lane.append(clipEl(c)));row.append(h,lane);tl.append(row)});const ph=el('div');ph.id='ph';tl.append(ph)}
+function clipEl(c){const m=P.media[c.media],miss=!c.text&&!blobs[c.media],e=el('div',`clip ${kind(c)}${c.id==sel?' sel':''}${miss?' miss':''}`);e.style.left=c.start*Z+'px';e.style.width=Math.max(5,c.dur*Z)+'px';e.innerHTML=`<i class="hl"></i><b>${esc(c.text?c.text.s.split('\n')[0]:m?.name||'?')}${c.speed!=1?` ${c.speed}×`:''}${c.rev?' ⟲':''}${miss?' (missing media)':''}</b><i class="hr"></i>`;
+if(!c.text&&m?.type!='image'&&peaks[c.media]){const w=document.createElement('canvas'),W=Math.min(4000,Math.ceil(c.dur*Z)),f=c.dur*Z/W,pk=peaks[c.media],pps=pk.length/m.dur;w.className='wf';w.width=W;w.height=40;const g=w.getContext('2d');g.fillStyle='rgba(255,255,255,.6)';for(let x=0;x<W;x+=2){const lt=x*f/Z,i=Math.floor((c.in+(c.rev?c.dur-lt:lt)*c.speed)*pps),v=(pk[i]||0)/255*18;g.fillRect(x,20-v,1.5,v*2+1)}e.append(w)}
+const ts=new Set();for(const k in c.kf)c.kf[k].forEach(x=>ts.add(x.t));ts.forEach(t=>{if(t>=0&&t<=c.dur){const d=el('i','kd');d.style.left=t*Z-3+'px';e.append(d)}});e.onpointerdown=ev=>down(ev,c);e.ondragover=ev=>{ev.preventDefault();e.style.outline='2px dashed var(--ac)'};e.ondragleave=()=>e.style.outline='';e.ondrop=ev=>{e.style.outline='';const d=ev.dataTransfer.getData('text/plain');if(/^(fx|pr|tr):/.test(d)){ev.preventDefault();ev.stopPropagation();dropOn(c,d)}};return e}
+function snapT(v,c){if(!snapOn)return v;const th=8/Z;let b=null;for(const p of[0,T,...P.clips.filter(x=>x!=c).flatMap(x=>[x.start,x.start+x.dur])])if(Math.abs(p-v)<th&&(b==null||Math.abs(p-v)<Math.abs(b-v)))b=p;return b??v}
+function down(ev,c){if(ev.button)return;ev.stopPropagation();sel=c.id;const tr=trk(c.track);drawTL();drawProps();if(tr.lock)return;const mode=ev.target.classList.contains('hl')?'l':ev.target.classList.contains('hr')?'r':'m',o={start:c.start,dur:c.dur,in:c.in,track:c.track},x0=ev.clientX,m=P.media[c.media],lim=c.text||m?.type=='image'?1e5:m?.dur||1e5;snap('drag');
+const mv=e=>{let dt=(e.clientX-x0)/Z;if(mode=='m'){let s=Math.max(0,o.start+dt),a=snapT(s,c),b=snapT(s+o.dur,c)-o.dur;s=Math.abs(a-s)<=Math.abs(b-s)?a:b;c.start=Math.max(0,s);const k=kind(c);for(const l of document.querySelectorAll('.lane')){const r=l.getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<r.bottom){const t2=trk(l.dataset.t);if(t2.k==k&&!t2.lock)c.track=t2.id}}}
+else if(mode=='r'){let end=snapT(o.start+o.dur+dt,c);const max=c.rev?o.dur+o.in/c.speed:(lim-o.in)/c.speed;c.dur=clamp(end-o.start,.05,max);c.in=c.rev?o.in+(o.dur-c.dur)*c.speed:o.in}
+else{let s=snapT(o.start+dt,c);dt=s-o.start;const lo=Math.max(-o.start,c.rev?-1e5:-o.in/c.speed);dt=clamp(dt,lo,o.dur-.05);c.start=o.start+dt;c.dur=o.dur-dt;c.in=c.rev?o.in:o.in+dt*c.speed}
+drawTL();dirty()};const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);drawProps()};addEventListener('pointermove',mv);addEventListener('pointerup',up)}
+function drawBar(){const b=$('#tbar');b.innerHTML='';[['Split (S)',split],['Duplicate',dup],['Delete',del],['Copy',()=>{clipb=cur()&&JSON.parse(JSON.stringify(cur()))}],['Paste',()=>{if(!clipb)return;snap('paste');const r=JSON.parse(JSON.stringify(clipb));r.id=uid();r.start=T;P.clips.push(r);sel=r.id;drawTL();drawProps();dirty()}],['+ Video track',()=>{snap('trk');const n=P.tracks.filter(t=>t.k=='v').length+1,i=P.tracks.findIndex(t=>t.k=='v');P.tracks.splice(i,0,{id:'V'+uid(),n:'Video '+n,k:'v'});drawTL()}],['+ Audio track',()=>{snap('trk');P.tracks.push({id:'A'+uid(),n:'Audio '+(P.tracks.filter(t=>t.k=='a').length+1),k:'a'});drawTL()}]].forEach(([n,f])=>{const x=el('button',null,n);x.onclick=f;b.append(x)});
+const sn=el('button',snapOn?'on':'','Snapping');sn.onclick=()=>{snapOn=!snapOn;sn.classList.toggle('on',snapOn)};const z=el('input');z.type='range';z.min=20;z.max=400;z.value=Z;z.style.width='110px';z.oninput=()=>{Z=+z.value;drawTL()};z.setAttribute('aria-label','Timeline zoom');b.append(sn,el('span','gap'),el('span',null,'Zoom'),z)}
+/* ---------- properties ---------- */
+function sec(par,t){const d=el('div');d.append(el('h4',null,t));par.append(d);return d}
+function inp(par,label,o,k,type='number',opt){const r=el('div','row',`<label>${label}</label>`);let i;if(opt){i=el('select');opt.forEach(([v,n])=>i.add(new Option(n,v)))}else i=type=='area'?el('textarea'):el('input');if(!opt&&type!='area')i.type=type;if(type=='checkbox')i.checked=!!o[k];else i.value=o[k];if(type=='area')i.rows=2;i.oninput=i.onchange=()=>{snap('i'+k);o[k]=type=='checkbox'?i.checked:type=='number'?+i.value:i.value;if(k=='s'||k=='speed')drawTL();dirty()};r.append(i);par.append(r);return i}
+function prow(c,key,label,[d,mn,mx,st=1],par){const r=el('div','row',`<label>${label}</label>`),rg=el('input'),nm=el('input'),dia=el('button','dia','◆');rg.type='range';nm.type='number';[rg,nm].forEach(i=>{i.min=mn;i.max=mx;i.step=st});dia.title='Toggle keyframe at playhead';
+const upd=v=>{rg.value=nm.value=+(+v).toFixed(3)},lt=()=>T-c.start,set=v=>{v=+v;if(isNaN(v))return;snap('p'+key);if(c.kf[key]?.length){putKF(c,key,lt(),v);drawTL()}else setBase(c,key,v);upd(v);dirty();syncProps()};rg.oninput=()=>set(rg.value);nm.onchange=()=>set(nm.value);dia.onclick=()=>{toggleKF(c,key);syncProps();drawTL()};rowsReg.push({key,upd,dia,c,rg,nm});r.append(rg,nm,dia);par.append(r)}
+function syncProps(){rowsReg.forEach(r=>{const lt=T-r.c.start;if(document.activeElement!=r.rg&&document.activeElement!=r.nm)r.upd(get(r.c,r.key,lt));const k=r.c.kf[r.key];r.dia.classList.toggle('on',!!k?.some(x=>Math.abs(x.t-lt)<.5/P.fps));r.dia.classList.toggle('has',!!k?.length)})}
+const putKF=(c,key,t,v)=>{const a=c.kf[key]??=[],i=a.findIndex(k=>Math.abs(k.t-t)<.5/P.fps);if(i>=0)a[i].v=v;else{a.push({t,v,e:curEase});a.sort((x,y)=>x.t-y.t)}};
+function toggleKF(c,key){const lt=T-c.start,a=c.kf[key]??=[],i=a.findIndex(k=>Math.abs(k.t-lt)<.5/P.fps);snap('kf');if(i>=0){a.splice(i,1);if(!a.length)delete c.kf[key]}else putKF(c,key,lt,get(c,key,lt));dirty()}
+function drawProps(){const R=$('#right');R.innerHTML='';rowsReg=[];const c=cur();if(!c){R.innerHTML='<p class="hint">Select a clip on the timeline to edit its transform, audio, transition and effects.</p>';return}
+const m=P.media[c.media],au=isA(c);R.append(el('div','chead',`<b>${esc(c.text?c.text.s.split('\n')[0]:m?.name||'Clip')}</b><small>${c.text?'Text':au?'Audio':m?.type=='image'?'Image':'Video'} · ${c.fx.length} effect${c.fx.length==1?'':'s'}</small>`));const cl=sec(R,'Clip');if(!c.text){const sp=inp(cl,'Speed',c,'speed');sp.min=.1;sp.max=8;sp.step=.05;sp.onchange=()=>{snap('spd');const n=clamp(+sp.value||1,.1,8);c.dur=c.dur*c.speed/n;c.speed=n;if(c.timeMap){c.timeMapSourceSpan=c.dur*c.speed;if(c.timeMapSettings?.type==='smoothReverse')c.timeMap=buildSmoothReverseMap(c.timeMapSettings)}drawTL();fcClear();dirty();sync(T,false)};if(m?.type!=='image'&&!au){const tm=sec(R,'Retime');tm.append(el('p','hint',c.timeMap?`Custom source-time curve · ${c.timeMap.length} points. Retimed sections are decoded frame-by-frame. Playback may slow down on browsers that cannot seek quickly; the timeline waits for each decoded frame instead of running ahead and freezing the preview. Audio is muted while the video is retimed.`:c.rev?'Reverse playback is enabled.':'Choose a retime curve or reverse the selected clip.'));const actions=el('div','retime-actions');const addAction=(label,mode)=>{const b=el('button',null,label);b.onclick=()=>setRetime(c,mode);actions.append(b)};addAction('Normal','normal');addAction('Reverse','reverse');addAction('Smooth Reverse','smoothReverse');addAction('Boomerang 0→end→0','boomerang');addAction('Smooth Boomerang','smoothBoomerang');addAction('Velocity Ramp','velocity');addAction('Slow Motion','slow');tm.append(actions);if(c.timeMapSettings?.type==='smoothReverse'){const cfg=c.timeMapSettings,makeRange=(label,key,min,max,step,scale=1)=>{const row=el('div','row',`<label>${label}</label>`),range=el('input'),value=el('input');range.type='range';value.type='number';range.min=min*scale;range.max=max*scale;range.step=step*scale;value.min=min;value.max=max;value.step=step;range.value=(cfg[key]*scale).toFixed(2);value.value=cfg[key].toFixed(2);range.oninput=value.onchange=()=>{const v=clamp(+((range===document.activeElement?range:value).value)/scale,min,max);cfg[key]=v;range.value=(v*scale).toFixed(2);value.value=v.toFixed(2);c.timeMap=buildSmoothReverseMap(cfg);c.timeMapSourceIn=c.in;c.timeMapSourceSpan=c.dur*c.speed;fcClear();dirty();sync(T,false)};row.append(range,value);tm.append(row)};makeRange('Reverse duration %','reverseDuration',.08,.38,.01,100);makeRange('Forward speed ×','forwardSpeed',.35,2.5,.05);makeRange('Reverse speed ×','reverseSpeed',.2,1.5,.05);tm.append(el('p','hint','The middle section samples decoded source frames in descending order. Blur and shake remain independently adjustable in the Effects stack.'))}if(c.timeMap){const cr=el('div','row','<label>Curve</label>'),sl=el('select');[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In-Out'],['bezier','Smooth (bezier)']].forEach(([v,n])=>sl.add(new Option(n,v)));sl.value=c.timeMap[0].e||'linear';sl.onchange=()=>{snap('curve');c.timeMapSettings=null;c.timeMap=normalizeTimeMap(c.timeMap.map(x=>({...x,e:sl.value})));drawProps();drawTL();dirty();sync(T,false)};cr.append(sl);tm.append(cr)}if(c.timeMap){const map=normalizeTimeMap(c.timeMap)||[],u=timeMapPosition(c,T-c.start),valNow=mapValue(map,u)*100,row=el('div','row',`<label>Source %</label>`),n=el('input');n.type='number';n.min=0;n.max=100;n.step=1;n.value=valNow.toFixed(1);const put=el('button',null,'Set point');put.onclick=()=>{const v=clamp(+n.value/100,0,1),t=timeMapPosition(c,T-c.start);snap('retimePoint');c.timeMapSettings=null;const a=normalizeTimeMap(c.timeMap)||[{t:0,v:0,e:'inout'},{t:1,v:1,e:'inout'}],i=a.findIndex(x=>Math.abs(x.t-t)<.015);if(i>=0)a[i].v=v;else a.push({t,v,e:'inout'});c.timeMap=normalizeTimeMap(a);if(c.timeMap){c.timeMapSourceIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in;c.timeMapSourceSpan=Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:c.dur*c.speed}drawProps();dirty();sync(T,false)};row.append(n,put);tm.append(row);const clear=el('button',null,'Clear time remap');clear.onclick=()=>setRetime(c,'normal');tm.append(clear)}const rv=inp(cl,'Reverse',c,'rev','checkbox');rv.onchange=()=>{snap('rev');c.rev=rv.checked;c.timeMap=null;drawTL();dirty();sync(T,false)}}} const ez=inp(cl,'New key easing',{e:curEase},'e','text',[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In Out'],['bezier','Bezier (overshoot)']]);ez.value=curEase;ez.onchange=()=>{curEase=ez.value;const lt=T-c.start;for(const k in c.kf)c.kf[k].forEach(x=>{if(Math.abs(x.t-lt)<.5/P.fps)x.e=curEase})};
+if(!au){const t=sec(R,'Transform');[['tr.x','Position X',[0,-2000,2000]],['tr.y','Position Y',[0,-2000,2000]],['tr.s','Scale %',[100,0,400]],['tr.r','Rotation',[0,-720,720]],['tr.o','Opacity',[100,0,100]]].forEach(([k,l,s])=>prow(c,k,l,s,t))}
+if(!c.text&&m?.type!='image'){const a=sec(R,'Audio');prow(c,'vol','Volume %',[100,0,200],a);inp(a,'Fade in s',c,'fi');inp(a,'Fade out s',c,'fo')}
+if(!au){const t=sec(R,'Transition in'),s=inp(t,'Type',{t:c.tin?.t||''},'t','text',[['','None'],...Object.entries(TR).map(([k,v])=>[k,v[0]])]);s.value=c.tin?.t||'';const d=inp(t,'Duration s',{d:c.tin?.d||.6},'d');s.onchange=d.onchange=()=>{snap('tin');c.tin=s.value?{t:s.value,d:+d.value||.6}:null;dirty()};
+if(c.text){const x=sec(R,'Text');inp(x,'Text',c.text,'s','area');inp(x,'Font',c.text,'font','text',['IBM Plex Sans','Arial','Georgia','Courier New','Impact','Trebuchet MS'].map(f=>[f,f]));inp(x,'Size',c.text,'size');inp(x,'Color',c.text,'col','color');inp(x,'Bold',c.text,'b','checkbox');inp(x,'Italic',c.text,'i','checkbox');inp(x,'Stroke',c.text,'sw');inp(x,'Stroke color',c.text,'sc','color');inp(x,'Shadow',c.text,'sh');inp(x,'Align',c.text,'al','text',[['left','Left'],['center','Center'],['right','Right']]);inp(x,'Spacing',c.text,'ls');inp(x,'Animation',c.text,'an','text',TANIM)}
+const f=sec(R,'Effects'),ad=el('select');ad.add(new Option('Add effect…',''));Object.entries(FX).forEach(([k,v])=>ad.add(new Option(v.n,k)));ad.onchange=()=>{if(ad.value)addFx(ad.value)};f.append(ad);
+if(!c.fx.length)f.append(el('p','hint','No effects yet. Drag one onto this clip, or use “Add effect”.'));c.fx.forEach((fx,i)=>{const d=FX[fx.t],card=el('div','fx'+(fx.col?' c':'')),h=el('header',null,`<b style="cursor:pointer">${fx.col?'▸':'▾'} ${d.n}</b>`);h.firstChild.onclick=()=>{fx.col=!fx.col;drawProps()};const bt=(l,t,fn)=>{const b=el('button',null,l);b.title=t;b.onclick=fn;h.append(b)};bt(fx.off?'○':'●','Bypass',()=>{fx.off=!fx.off;drawProps();dirty()});bt('▲','Move up',()=>{if(i){snap('fx');[c.fx[i-1],c.fx[i]]=[c.fx[i],c.fx[i-1]];drawProps();dirty()}});bt('▼','Move down',()=>{if(i<c.fx.length-1){snap('fx');[c.fx[i+1],c.fx[i]]=[c.fx[i],c.fx[i+1]];drawProps();dirty()}});bt('✕','Remove',()=>{snap('fx');c.fx.splice(i,1);for(const k in c.kf)if(k.startsWith(`fx:${fx.id}:`))delete c.kf[k];drawProps();drawTL();dirty()});card.append(h);if(fx.meta?.conversion)card.append(el('p','hint',`${fx.meta.conversion}${fx.meta.sourceEffectName?' · Source: '+fx.meta.sourceEffectName:''}${fx.meta.unmappedProperties?.length?' · '+fx.meta.unmappedProperties.length+' source properties not mapped':''}`));for(const[k,s]of Object.entries(d.p))prow(c,`fx:${fx.id}:${k}`,LBL[k]||k,s,card);f.append(card)});
+const hasCustomTransform=!!(c.tr&&(Math.abs((+c.tr.x||0))>.001||Math.abs((+c.tr.y||0))>.001||Math.abs((+c.tr.s||100)-100)>.001||Math.abs((+c.tr.r||0))>.001||Math.abs((+c.tr.o||100)-100)>.001));if(c.fx.length||Object.keys(c.kf).length||c.timeMap||c.rev||hasCustomTransform){const s=sec(R,'Save as preset'),n=el('input');n.placeholder='Preset name';const b=el('button',null,'Save');b.onclick=async()=>{const p=presetFromClip(c,n.value||'My preset');p.id=uid();await savePresetObject(p);toast('Saved “'+p.name+'”')};s.append(n,b)}}
+syncProps()}
+const TANIM=[['none','None'],['pop','Pop In'],['fade','Fade In'],['slide','Slide In'],['type','Typewriter'],['bounce','Bounce'],['glitch','Glitch'],['zoom','Zoom']];
+function dropOn(c,d){sel=c.id;drawTL();drawProps();const k=d.split(':')[0],v=d.slice(k.length+1);if(k=='fx')addFx(v);else if(k=='pr'){const pr=BUILTIN.find(p=>p.name==v)||custom.find(p=>p.id==v);pr&&applyPreset(pr)}else{if(isA(c))return toast('Transitions need a video, image or text clip.',1);snap('tin');c.tin={t:v,d:.6};drawProps();dirty();seek(c.start)}}
+function addFx(t){const c=cur();if(!c||isA(c))return toast('Select a video, image or text clip first.',1);snap('fx');c.fx.push({id:uid(),t,p:defs(t)});drawProps();dirty()}
+/* ---------- left panel ---------- */
+const TABS=[['media','Media'],['effects','Effects'],['presets','Presets'],['trans','Transitions'],['text','Text'],['layers','Layers']];
+async function drawLeft(){const nv=$('#ltabs');nv.innerHTML='';TABS.forEach(([k,n])=>{const b=el('button',k==tab?'on':'',n);b.onclick=()=>{tab=k;drawLeft()};nv.append(b)});const B=$('#lbody');B.innerHTML='';
+if(tab=='media'){const b=el('button','pri','Import media');b.onclick=()=>$('#fm').click();B.append(b,el('p','hint','Drop files anywhere. MP4, MOV, WebM, PNG, JPG, GIF, WAV, MP3, AAC — whatever your browser can decode. Double-click or drag an item to the timeline.'));Object.values(P.media).forEach(m=>{const i=el('div','item',`<img alt="" src="${m.thumb||''}"><div><div>${esc(m.name)}</div><small>${m.type}${m.w?` · ${m.w}×${m.h}`:''}${m.fps?` · ${m.fps} fps`:''} · ${(m.dur||0).toFixed(1)}s${blobs[m.id]?'':' · missing'}</small></div>`);i.draggable=true;i.querySelector('img').draggable=false;i.ondragstart=e=>e.dataTransfer.setData('text/plain','m:'+m.id);i.ondblclick=()=>addClip(m.id,m.type=='audio'?'A1':'V1',T);const x=el('button','dia','✕');x.title='Remove from library';x.onclick=()=>{snap('rm');P.clips=P.clips.filter(c=>c.media!=m.id);delete P.media[m.id];delete blobs[m.id];gc();drawLeft();drawTL()};i.append(x);B.append(i)})}
+if(tab=='effects'){B.append(el('p','hint','Effects are grouped by folder. Click to add, or drag an effect to a clip. Keyframe its parameters in Properties.'));FX_GROUPS.forEach(group=>{const details=el('details','fxfolder');details.open=false;const summary=el('summary',null,`${group.name} · ${group.items.filter(k=>FX[k]).length}`),grid=el('div','grid');details.append(summary,grid);group.items.filter(k=>FX[k]).forEach(k=>{const b=el('button',null,FX[k].n);b.onclick=()=>addFx(k);b.draggable=true;b.ondragstart=e=>e.dataTransfer.setData('text/plain','fx:'+k);grid.append(b)});B.append(details)})}
+if(tab=='presets'){B.append(el('p','hint','Football Edits contains 15 editable effect chains. Smooth Reverse uses real source-frame time remapping; tune its duration and speeds on the selected clip.'));const b=el('button','pri','Import .ffx / AE JSON'),e=el('button',null,'Export all'),folder=el('button',null,'New folder'),test=el('button',null,'Test save/load');b.onclick=()=>$('#fp').click();e.onclick=async()=>{if(!custom.length)return toast('No saved presets yet.');const presets=[];for(const p of custom){const{id,...q}=structuredClone(p);if(p.sourceOnly&&p.compatibility?.originalFileKey){const raw=await idb('media','get',p.compatibility.originalFileKey);if(!raw)throw new Error(`Original .ffx data for “${p.name}” is missing from IndexedDB. The preset pack was not exported.`);const bytes=new Uint8Array(await raw.arrayBuffer());let bin='';for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));q.sourceFileBase64=btoa(bin)}presets.push(q)}await save('cutroom-presets.json',new Blob([JSON.stringify({format:'cutroom-preset-pack',version:3,presets},null,2)],{type:'application/json'}))};folder.onclick=async()=>{const name=prompt('Folder name');if(!name)return;const id=uid();await idb('folders','put',{id,name},id);drawLeft()};test.onclick=runPresetStorageTest;B.append(b,' ',e,' ',folder,' ',test);
+ const makeCard=(p,own)=>{const i=el('div','item'),info=el('div');info.style.flex='1';const thumb=p.thumbnail||presetPreviewThumb(p);if(thumb){const im=el('img');im.src=thumb;im.alt='';im.style.cssText='width:64px;height:36px;object-fit:cover;border-radius:4px';i.append(im)}info.innerHTML=`<div>${esc(p.name)}</div><small>${esc(p.cat||'Uncategorized')} · ${p.sourceOnly?'original .ffx source · conversion required':`${(p.fx||[]).length} effects${p.timeMap||p.retimeSettings?' · retime':''}${p.transform?' · transform':''}${p.compatibility?.source?' · converted AE import':''}`}</small>`;i.append(info);i.style.cursor='pointer';i.onclick=()=>showPresetPreview(p);i.draggable=true;i.ondragstart=e=>e.dataTransfer.setData('text/plain','pr:'+(p.id||p.name));if(own){const act=(label,title,fn)=>{const q=el('button','dia',label);q.title=title;q.onclick=ev=>{ev.stopPropagation();fn(q,i,p)};i.append(q)};act('✎','Rename',async()=>{const name=prompt('Preset name',p.name);if(name){p.name=name;await savePresetObject(p)}});act('↻','Update from selected clip',async()=>{const c=cur();if(!c||isA(c))return toast('Select a video, image or text clip to update this preset.',1);if(p.sourceOnly)return toast('A preserved .ffx source cannot be overwritten with Cutroom settings.',1);const fresh=presetFromClip(c,p.name);fresh.id=p.id;fresh.cat=p.cat||'Custom';fresh.folder=p.folder||'';await savePresetObject(fresh);toast('Updated “'+fresh.name+'” from the selected clip')});act('⧉','Duplicate',async()=>{const copy=structuredClone(p),oldKey=p.compatibility?.originalFileKey;copy.id=uid();copy.name=p.name+' Copy';if(copy.sourceOnly&&oldKey){const raw=await idb('media','get',oldKey);copy.compatibility.originalFileKey='ffx-source:'+copy.id;if(raw)await idb('media','put',raw,copy.compatibility.originalFileKey)}await savePresetObject(copy);toast('Preset duplicated')});act('📁','Move to folder',async()=>{const folders=await idb('folders','getAll');const names=folders.map(f=>f.name);const pick=prompt('Folder name (leave empty for no folder):\n'+names.join('\n'),p.folder||'');if(pick!==null){p.folder=pick;await savePresetObject(p)}});act('⤓','Export',async()=>{if(p.sourceOnly){const raw=await idb('media','get',p.compatibility?.originalFileKey);if(raw)await save(p.name.replace(/[^\w-]+/g,'_')+'.ffx',raw);else toast('Original FFX bytes are not available.',1);return}const{id,...q}=p;save(p.name.replace(/[^\w-]+/g,'_')+'.json',new Blob([JSON.stringify({format:'cutroom-preset',version:3,...q},null,2)],{type:'application/json'}))});act('✕','Delete',async()=>{if(!confirm('Delete preset “'+p.name+'”?'))return;if(p.compatibility?.originalFileKey)await idb('media','delete',p.compatibility.originalFileKey).catch(()=>{});await idb('presets','delete',p.id);loadCustom()})}return i};
+ const builtGroups=new Map();BUILTIN.forEach(p=>{const key=p.cat||'General';if(!builtGroups.has(key))builtGroups.set(key,[]);builtGroups.get(key).push(p)});for(const [name,ps] of builtGroups){const details=el('details','fxfolder');details.open=name.toLowerCase().includes('football');const wrap=el('div');details.append(el('summary',null,`Built-in · ${name} (${ps.length})`));ps.forEach(p=>wrap.append(makeCard(p,false)));details.append(wrap);B.append(details)}
+ const folders=await idb('folders','getAll').catch(()=>[]),folderNames=[...new Set([...folders.map(f=>f.name),...custom.map(p=>p.folder).filter(Boolean)])],unfiled=custom.filter(p=>!p.folder);if(unfiled.length){const details=el('details','fxfolder');details.open=true;details.append(el('summary',null,`My presets · Unfiled (${unfiled.length})`));unfiled.forEach(p=>details.append(makeCard(p,true)));B.append(details)}for(const name of folderNames){const ps=custom.filter(p=>p.folder===name),details=el('details','fxfolder');details.open=false;details.append(el('summary',null,`My presets · ${name} (${ps.length})`));ps.forEach(p=>details.append(makeCard(p,true)));B.append(details)}B.append(el('p','hint','Converted AE JSON presets store mapped parameters, relative keyframe timing, effect order and source metadata. Raw .ffx files are preserved unchanged but are not shown as converted effects: the Adobe binary property stream is not decoded here. To convert one, apply it to a layer in After Effects, run Cutroom_AE_Exporter.jsx, then import the generated JSON. Unsupported plug-ins and expressions are reported instead of being silently discarded.'))}
+if(tab=='trans'){B.append(el('p','hint','Applies an entrance transition to the selected clip.'));const g=el('div','grid');Object.entries(TR).forEach(([k,v])=>{const b=el('button',null,v[0]);b.draggable=true;b.ondragstart=e=>e.dataTransfer.setData('text/plain','tr:'+k);b.onclick=()=>{const c=cur();if(!c||isA(c))return toast('Select a video, image or text clip first.',1);snap('tin');c.tin={t:k,d:.6};drawProps();dirty();seek(c.start)};g.append(b)});B.append(g)}
+if(tab=='text'){B.append(el('p','hint','Adds a title at the playhead.'));const g=el('div','grid');TANIM.forEach(([k,n])=>{const b=el('button',null,n=='None'?'Plain text':n);b.onclick=()=>addText(k);g.append(b)});B.append(g)}
+if(tab=='layers'){P.tracks.forEach(t=>P.clips.filter(c=>c.track==t.id).forEach(c=>{const i=el('div','item',`<div><div>${esc(c.text?c.text.s:P.media[c.media]?.name||'?')}</div><small>${t.n} · ${c.start.toFixed(2)}s · ${c.fx.length} fx</small></div>`);i.style.cursor='pointer';i.onclick=()=>{sel=c.id;drawTL();drawProps()};B.append(i)}));if(!P.clips.length)B.append(el('p','hint','No layers yet.'))}}
+/* ---------- projects ---------- */
+function modal(body,btns){const m=$('#mod'),d=m.firstElementChild;d.innerHTML='';d.append(body);const bs=el('div','btns');btns.forEach(([n,f,keep])=>{const b=el('button',n==btns[btns.length-1][0]&&f?'pri':'',n);b.onclick=()=>{if(!keep)m.style.display='none';f?.()};bs.append(b)});d.append(bs);m.style.display='flex';return bs}
+const closeMod=()=>$('#mod').style.display='none';
+const snapshot=()=>({...P,media:Object.fromEntries(Object.entries(P.media).map(([k,{thumb,...m}])=>[k,m]))});
+async function saveProj(name){try{P.name=name||P.name;await idb('projects','put',JSON.stringify(snapshot()),P.name);$('#sv').textContent='Saved '+new Date().toLocaleTimeString();listProjects()}catch{$('#sv').textContent='Storage unavailable'}}
+async function listProjects(){try{const ks=await idb('projects','getAllKeys'),s=$('#sOpen');s.innerHTML='<option value="">Open…</option>';ks.forEach(k=>s.add(new Option(k,k)))}catch{}}
+async function loadProject(o){playing=false;for(const id in els){els[id].pause?.();gains[id]?.disconnect()}Object.keys(els).forEach(k=>{delete els[k];delete gains[k]});P={...newProj(),...o,format:o.format||'custom',fit:o.fit==='cover'?'cover':'contain'};for(const c of P.clips||[]){c.timeMapSettings=normalizeRetimeSettings(c.timeMapSettings);if(c.timeMapSettings)c.timeMap=buildSmoothReverseMap(c.timeMapSettings);c.timeMap=normalizeTimeMap(c.timeMap);if(c.timeMap){if(!Number.isFinite(c.timeMapSourceIn))c.timeMapSourceIn=Number(c.in)||0;if(!Number.isFinite(c.timeMapSourceSpan))c.timeMapSourceSpan=Math.max(0,(Number(c.dur)||0)*(Number(c.speed)||1));if(!Number.isFinite(c.timeMapTimelineStart))c.timeMapTimelineStart=0;if(!Number.isFinite(c.timeMapTimelineSpan))c.timeMapTimelineSpan=1}else{c.timeMapSourceIn=null;c.timeMapSourceSpan=null;c.timeMapTimelineStart=null;c.timeMapTimelineSpan=null}}sel=null;T=0;hist=[];for(const id of Object.keys(retimeFrames))delete retimeFrames[id];const miss=[];for(const id in P.media){const m=P.media[id];if(!blobs[id]){try{const b=await idb('media','get',id);if(b)blobs[id]=b}catch{}}if(blobs[id]){if(!m.thumb&&m.type!='audio')thumbFor(m);analyze(m)}else miss.push(m.name)}
+$('#pname').value=P.name;resizeCv();updateFormatLabel();drawLeft();drawTL();drawProps();if(miss.length)toast('Missing media: '+miss.join(', ')+'. Import files with the same names to relink them.',1)}
+async function thumbFor(m){try{const e=m.type=='image'?new Image():el('video');e.src=url(m.id);if(m.type=='image')await waitEv(e,'load');else{e.muted=true;await waitEv(e,'loadedmetadata');e.currentTime=Math.min(.5,e.duration/2);await waitEv(e,'seeked')}m.thumb=thumbOf(e,m.w||e.videoWidth,m.h||e.videoHeight);drawLeft()}catch{}}
+const CANVAS_FORMATS=[['tiktok','TikTok video 9:16',1080,1920,'1080 × 1920 · vertical full-screen'],['reels','Instagram Reels / Stories 9:16',1080,1920,'1080 × 1920 · vertical full-screen'],['shorts','YouTube Shorts 9:16',1080,1920,'1080 × 1920 · vertical full-screen'],['fbstory','Facebook Stories 9:16',1080,1920,'1080 × 1920 · vertical full-screen'],['igportrait','Instagram feed portrait 4:5',1080,1350,'1080 × 1350 · portrait feed'],['ig34','Instagram tall feed 3:4',1080,1440,'1080 × 1440 · tall feed crop'],['square','Instagram square 1:1',1080,1080,'1080 × 1080 · square post'],['igland','Instagram feed landscape 1.91:1',1080,566,'1080 × 566 · wide feed post'],['landscape','YouTube / standard 16:9',1920,1080,'1920 × 1080 · Full HD landscape'],['hd','HD landscape 16:9',1280,720,'1280 × 720 · smaller landscape'],['uhd','4K landscape 16:9',3840,2160,'3840 × 2160 · UHD'],['uhdvertical','4K vertical 9:16',2160,3840,'2160 × 3840 · UHD vertical']];
+function updateFormatLabel(){let a=P.w,b=P.h;while(b){const t=a%b;a=b;b=t}const f=CANVAS_FORMATS.find(x=>x[2]===P.w&&x[3]===P.h),ratio=`${P.w/a}:${P.h/a}`;$('#fmtlabel').textContent=`${P.w}×${P.h} · ${f?ratio:ratio} · ${P.fit==='cover'?'crop fill':'fit'}`}
+function applyCanvasSize(w,h,format,fit=P.fit||'cover'){P.w=clamp(Math.round(+w)||1920,16,7680);P.h=clamp(Math.round(+h)||1080,16,4320);P.format=format||'custom';P.fit=fit==='contain'?'contain':'cover';resizeCv();drawTL();drawProps();updateFormatLabel();toast(`Canvas set to exact ${P.w}×${P.h} · ${P.fit==='cover'?'crop to fill':'fit whole frame'}`)}
+function formatDlg(){const body=el('div');body.innerHTML='<h3>Exact canvas formats</h3><p class="hint">Choose the actual pixel dimensions. Export defaults to these exact dimensions. Crop to fill cuts off the outside of the source frame; Fit keeps the whole source and may show bars.</p>';const fitRow=el('div','row'),fitLabel=el('label',null,'Media fit'),fit=el('select');fit.innerHTML='<option value="cover">Crop to fill (cover)</option><option value="contain">Fit whole frame (letterbox)</option>';fit.value='cover';fitRow.append(fitLabel,fit);body.append(fitRow);const grid=el('div','format-grid');CANVAS_FORMATS.forEach(([id,name,w,h,desc])=>{const b=el('button','format-tile',`<b>${esc(name)}</b><small>${w} × ${h} · ${esc(desc)}</small>`);b.onclick=()=>{closeMod();applyCanvasSize(w,h,id,fit.value)};grid.append(b)});body.append(grid);const custom=el('div');custom.style.marginTop='12px';custom.innerHTML='<h4>Custom dimensions (pixels)</h4>';const row=el('div','row'),w=el('input'),h=el('input');w.type=h.type='number';w.min=h.min='16';w.max=h.max='7680';w.value=P.w;h.value=P.h;w.placeholder='Width px';h.placeholder='Height px';const b=el('button','pri','Apply custom');b.onclick=()=>{closeMod();applyCanvasSize(w.value,h.value,'custom',fit.value)};row.append(w,h,b);custom.append(row);body.append(custom);modal(body,[['Close']])}
+function settings(){const b=el('div',null,'<h3>Project settings</h3>');const o={name:P.name,w:P.w,h:P.h,fps:P.fps};inp(b,'Name',o,'name','text');inp(b,'Width',o,'w');inp(b,'Height',o,'h');inp(b,'Frame rate',o,'fps','text',[24,25,30,50,60].map(x=>[x,x+' fps']));modal(b,[['Cancel'],['Apply',()=>{P.name=o.name;$('#pname').value=P.name;P.fps=clamp(+o.fps||30,1,120);applyCanvasSize(o.w,o.h,'custom')} ]])}
+/* ---------- export ---------- */
+function exportDlg(){if(!window.MediaRecorder)return toast('This browser has no MediaRecorder, so video export is unavailable.',1);if(!P.clips.length)return toast('Add clips to the timeline first.',1);const mimes={webm:['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mp4:['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4']},ok=Object.fromEntries(Object.entries(mimes).map(([k,v])=>[k,v.find(x=>MediaRecorder.isTypeSupported(x))]));
+const o={fmt:ok.mp4?'mp4':'webm',scale:'1',fps:P.fps,vb:12,ab:192,rng:'all'},b=el('div',null,'<h3>Export video</h3>');inp(b,'Format',o,'fmt','text',[...(ok.mp4?[['mp4','MP4 (H.264)']]:[]),...(ok.webm?[['webm','WebM (VP9)']]:[])]);inp(b,'Output size',o,'scale','text',[['1',`Exact canvas · ${P.w} × ${P.h}`],['.75','75% of canvas'],['.5','50% of canvas'],['2','200% of canvas']]);inp(b,'Frame rate',o,'fps','text',[24,25,30,50,60].map(x=>[x,x+' fps']));inp(b,'Video Mbps',o,'vb');inp(b,'Audio kbps',o,'ab');inp(b,'Range',o,'rng','text',[['all','Whole timeline'],['ph','Playhead to end']]);
+b.append(el('p','hint',`Exact canvas export is selected by default: ${P.w} × ${P.h} pixels. This keeps TikTok/Reels 1080 × 1920, Instagram 1080 × 1350, and square 1080 × 1080 from being accidentally reduced to a 1080-pixel height. Export is still rendered live; overloaded devices can drop frames.`));
+modal(b,[['Cancel'],['Start export',()=>runExport(o,ok[o.fmt])]])}
+function exportSourceTime(c,t,m){
+ const lt=clamp(t-c.start,0,c.dur),fps=Math.max(1,m.fps||P.fps||30),mp=mappedProgress(c,lt),span=Math.max(0,c.dur*c.speed),mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;
+ let st;if(mp!==null){st=mapIn+mp*mapSpan;if(mp>=.999999)st-=frame}else if(c.rev)st=c.in+Math.max(0,span-qt(c,lt)*c.speed-frame);else st=c.in+qt(c,lt)*c.speed;
+ return clamp(st,0,Math.max(0,(m.dur||1e9)-frame));
+}
+function delay(ms){return new Promise(r=>setTimeout(r,Math.max(0,ms)))}
+async function waitVideoFrameForExport(e,target,name){
+ const timeoutMs=12000;
+ if(!e)throw new Error(`Missing video decoder for ${name||'clip'}.`);
+ if(e.readyState<2){try{await waitEv(e,'loadeddata',timeoutMs)}catch{throw new Error(`Video did not decode its first frame: ${name||'clip'}. Check that the source codec is supported.`)}}
+ if(e.videoWidth<=0||e.videoHeight<=0)throw new Error(`Video has no decoded picture: ${name||'clip'}.`);
+ if(e.seeking){
+  await new Promise((resolve,reject)=>{
+   let settled=false;const done=()=>{if(settled)return;settled=true;clearTimeout(timer);e.removeEventListener('seeked',onSeeked);e.removeEventListener('error',onError);resolve()};
+   const onSeeked=()=>done(),onError=()=>{if(settled)return;settled=true;clearTimeout(timer);e.removeEventListener('seeked',onSeeked);e.removeEventListener('error',onError);reject(new Error(`A previous seek failed in ${name||'clip'}.`))};
+   const timer=setTimeout(()=>onError(),timeoutMs);e.addEventListener('seeked',onSeeked,{once:true});e.addEventListener('error',onError,{once:true});if(!e.seeking)done();
+  }).catch(()=>{throw new Error(`A previous seek did not finish: ${name||'clip'}.`)});
+ }
+ // _cutroomSeeking is an editor-side guard; the browser's native `seeking`
+ // flag is authoritative. Clear a stale guard if the native seek already ended.
+ e._cutroomSeeking=false;
+ e.pause();const tolerance=Math.max(.0008,.2/Math.max(1,Number(e._cutroomFps)||30));
+ if(e.readyState<2||Math.abs((Number(e.currentTime)||0)-target)>tolerance){
+  await new Promise((resolve,reject)=>{
+   let settled=false;const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);e.removeEventListener('seeked',onSeeked);e.removeEventListener('error',onError);e._cutroomSeeking=false;resolve()};
+   const onSeeked=()=>finish(),onError=()=>{if(settled)return;settled=true;clearTimeout(timer);e.removeEventListener('seeked',onSeeked);e.removeEventListener('error',onError);e._cutroomSeeking=false;reject(new Error(`Could not decode frame in ${name||'clip'}.`))};
+   const timer=setTimeout(()=>{if(e.readyState>=2&&!e.seeking&&Math.abs((Number(e.currentTime)||0)-target)<Math.max(.002,tolerance*2))finish();else onError()},timeoutMs);
+   e.addEventListener('seeked',onSeeked,{once:true});e.addEventListener('error',onError,{once:true});e._cutroomSeeking=true;
+   try{e.currentTime=target;if(!e.seeking&&e.readyState>=2&&Math.abs((Number(e.currentTime)||0)-target)<.0005)setTimeout(finish,0)}catch{onError()}
+  });
+ }
+ // The seeked event with readyState >= HAVE_CURRENT_DATA is the decoder
+ // completion signal. One compositor turn is enough; do not impose a large
+ // fixed wait per frame (it makes 60 fps exports unnecessarily slow).
+ await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+ e.pause();e._cutroomSeeking=false;if(e.seeking||e.readyState<2||e.videoWidth<=0)throw new Error(`Frame is not ready for export: ${name||'clip'}.`);
+}
+function touchExportFrame(ctx,w,h,index){
+ // CanvasCaptureMediaStreamTrack may suppress identical consecutive frames
+ // (common with still images, slow motion, or a paused source). Toggle one
+ // near-black corner pixel so every requested timeline frame is capturable.
+ // The 1 px marker is visually negligible at normal video resolutions.
+ ctx.save();ctx.fillStyle=(index&1)?'rgb(8,8,8)':'rgb(9,9,9)';ctx.fillRect(Math.max(0,w-1),Math.max(0,h-1),1,1);ctx.restore();
+}
+async function prepareExportFrame(t){
+ const jobs=[];
+ for(const c of P.clips){
+  const tr=trk(c.track),m=P.media[c.media];
+  if(c.text||!m||m.type!=='video'||t<c.start||t>=c.start+c.dur||!tr||tr.k==='a'||!live(tr))continue;
+  const e=elFor(c),src=exportSourceTime(c,t,m);if(e)e._cutroomFps=m.fps||P.fps||30;
+  const remapped=!!(c.timeMap||c.rev||hasPT(c));
+  // Regular clips use native playback between samples. Retimed clips use
+  // deterministic seeks so reverse and velocity remapping render the right frame.
+  if(!remapped&&e&&e.readyState>=2&&!e.seeking&&!e._cutroomSeeking&&Math.abs((Number(e.currentTime)||0)-src)<.16)continue;
+  jobs.push(waitVideoFrameForExport(e,src,m.name));
+ }
+ await Promise.all(jobs);
+}
+async function runExport(o,mimeHint){
+ if(exporting)return;ensureAC();try{await AC.resume()}catch{}
+ const fps=clamp(Math.round(+o.fps||P.fps||30),1,120),scale=clamp(+o.scale||1,.25,2),even=x=>Math.max(2,Math.round(x/2)*2),Wd=even(P.w*scale),H=even(P.h*scale),start=o.rng==='ph'?T:0,end=endT();
+ if(end-start<.1)return toast('Nothing to export in that range.',1);
+ const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas.',1);
+ const oldT=T,wasPlaying=playing;playing=false;$('#bP').textContent='▶ Play';let stream=null,vt=null,rec=null,recStopped=null,chunks=[],failed=null,completed=0;
+ const mimeCandidates=[mimeHint,'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4'].filter(Boolean),chosen=mimeCandidates.find(x=>MediaRecorder.isTypeSupported(x))||'',ext=chosen.startsWith('video/mp4')?'mp4':'webm';
+ exporting={cancel:false,start,end,fps,frameCount,completed,output};
+ try{
+  const body=el('div',null,'<h3>Exporting…</h3><progress id="xp" max="1" value="0"></progress><p id="xt" class="hint">Preparing first frame…</p><p class="hint">Every source frame is decoded before capture. If decoding is slow, the last good frame stays visible instead of recording black.</p>');modal(body,[['Cancel export',()=>{if(exporting)exporting.cancel=true},1]]);
+  // Prepare and paint frame zero BEFORE captureStream/MediaRecorder starts.
+  // This avoids the common initial black-frame race in Chrome canvas capture.
+  T=start;await prepareExportFrame(start);if(exporting.cancel)throw new Error('Export cancelled.');render(outCtx,Wd,H,start);touchExportFrame(outCtx,Wd,H,0);
+  // Prefer explicit frame requests: the browser's automatic canvas sampler can
+  // skip the first painted frame and introduce irregular timestamps while the
+  // source video is being decoded. Fall back to the standard sampler where the
+  // optional requestFrame() API is unavailable.
+  stream=output.captureStream(0);vt=stream.getVideoTracks()[0];const manualCapture=typeof vt.requestFrame==='function';if(!manualCapture){stream.getTracks().forEach(x=>x.stop());stream=output.captureStream(fps);vt=stream.getVideoTracks()[0];}
+  if(MD?.stream)for(const a of MD.stream.getAudioTracks())if(a.readyState==='live')stream.addTrack(a);
+  const opt={videoBitsPerSecond:Math.max(1,Math.round((+o.vb||12)*1e6)),audioBitsPerSecond:Math.max(32,Math.round((+o.ab||192)*1000))};if(chosen)opt.mimeType=chosen;
+  rec=new MediaRecorder(stream,opt);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(250);if(manualCapture)vt.requestFrame();
+  const frameMs=1000/fps;completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;sync(start,true,true);
+  for(let i=1;i<frameCount;i++){
+   if(exporting.cancel)break;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
+   render(outCtx,Wd,H,t);touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
+   sync(t,true,true);
+   // Decode/render time already consumes part of this frame interval. Wait
+   // only for the remainder; adding a full frame delay after every seek makes
+   // the exported video progressively longer than the project timeline.
+   await delay(Math.max(0,frameMs-(performance.now()-frameStarted)));
+  }
+  if(exporting.cancel){toast('Export cancelled. No partial video was saved.');return}if(completed!==frameCount)throw new Error('Export stopped before all frames were rendered.');
+  // Hold the final rendered frame for one regular frame interval. Do not
+  // paint an extra frame past the timeline or add a multi-frame tail.
+  await delay(frameMs);
+ }catch(e){failed=e instanceof Error?e:new Error(String(e))}
+ finally{
+  Object.values(els).forEach(e=>{try{e.pause?.()}catch{}});if(rec&&rec.state!=='inactive'){try{rec.stop()}catch{}}if(recStopped)await Promise.race([recStopped,delay(3000)]);
+  if(stream)stream.getTracks().forEach(x=>{if(x.kind==='video')try{x.stop()}catch{}});exporting=null;T=oldT;sync(T,false);dirty();if(wasPlaying){playing=false;$('#bP').textContent='▶ Play'}closeMod();
+ }
+ if(failed){toast(`Export failed: ${failed.message}`,1);return}const blob=new Blob(chunks,{type:chosen||'video/webm'});if(!blob.size){toast('Export failed: the recorder produced an empty file.',1);return}
+ await save(`${P.name.replace(/\W+/g,'_')}.${ext}`,blob);toast(`Export complete: ${completed} frames · ${Wd} × ${H} · ${fps} fps target.`);
+}
+function finishExport(cancel=true){if(exporting)exporting.cancel=!!cancel}
+/* ---------- wiring ---------- */
+$('#fm').onchange=e=>{importFiles(e.target.files);e.target.value=''};$('#fp').onchange=e=>{importFiles(e.target.files);e.target.value=''};$('#fj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const j=JSON.parse(await f.text());if(j.format!='cutroom-project')throw 0;await loadProject(j.project)}catch{toast('Not a Cutroom project file.',1)}};
+addEventListener('dragover',e=>e.preventDefault());addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length)importFiles(e.dataTransfer.files)});
+$('#bNew').onclick=async()=>{await saveProj();await idb('projects','put',JSON.stringify(snapshot()),'backup '+new Date().toLocaleString()).catch(()=>{});loadProject(newProj())};$('#bSave').onclick=()=>saveProj($('#pname').value);$('#pname').onchange=()=>P.name=$('#pname').value||'Untitled';
+$('#sOpen').onchange=async e=>{if(!e.target.value)return;const s=await idb('projects','get',e.target.value);await loadProject(JSON.parse(s));e.target.value=''};
+$('#bPE').onclick=()=>save(P.name.replace(/\W+/g,'_')+'.cutroom.json',new Blob([JSON.stringify({format:'cutroom-project',version:1,_doc:'project = {name,w,h,fps,tracks[{id,n,k:v|a|t,mute,solo,lock,hide}],clips[{id,track,media,start,in,dur,speed,rev,vol,fi,fo,tr{x,y,s,r,o},fx[{id,t,p,off}],kf{key:[{t,v,e}]},tin,text}],media{id:{name,type,w,h,dur,fps}}}. Media files are not embedded; re-import files with the same names to relink.',project:snapshot()},null,1)],{type:'application/json'}));
+$('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
+$('#bP').onclick=togglePlay;$('#bH').onclick=()=>seek(0);$('#bE').onclick=()=>seek(endT());$('#bB').onclick=()=>seek(T-1/P.fps);$('#bF').onclick=()=>seek(T+1/P.fps);
+$('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode=e.target.value==='auto'?'auto':'manual';slowFrames=fastFrames=0;Q=qualityMode==='auto'?.5:+e.target.value;if(!exporting)resizeCv();$('#fps').title=qualityMode==='auto'?'Automatic preview quality':'Manual preview quality'};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;const k=e.key.toLowerCase(),ctl=e.ctrlKey||e.metaKey;if(k==' '){e.preventDefault();togglePlay()}else if(k=='s'&&!ctl)split();else if(k=='delete'||k=='backspace')del();else if(k=='arrowleft')seek(T-(e.shiftKey?1:1/P.fps));else if(k=='arrowright')seek(T+(e.shiftKey?1:1/P.fps));else if(k=='home')seek(0);else if(k=='end')seek(endT());else if(ctl&&k=='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(ctl&&k=='y'){e.preventDefault();redo()}else if(ctl&&k=='c')clipb=cur()&&JSON.parse(JSON.stringify(cur()));else if(ctl&&k=='v'&&clipb){snap('paste');const r=JSON.parse(JSON.stringify(clipb));r.id=uid();r.start=T;P.clips.push(r);sel=r.id;drawTL();drawProps();dirty()}else if(ctl&&k=='d'){e.preventDefault();dup()}});
+function splitter(id,fn){$(id).onpointerdown=e=>{e.preventDefault();const mv=ev=>fn(ev);const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)}}
+const root=document.documentElement.style;splitter('#sl',e=>root.setProperty('--lw',clamp(e.clientX,200,500)+'px'));splitter('#sr',e=>root.setProperty('--rw',clamp(innerWidth-e.clientX,220,520)+'px'));splitter('#hs',e=>root.setProperty('--th',clamp(innerHeight-e.clientY,150,innerHeight*.7)+'px'));
+cv.onclick=()=>{for(const t of P.tracks){if(t.k=='a'||!live(t))continue;const c=P.clips.find(c=>c.track==t.id&&T>=c.start&&T<c.start+c.dur);if(c){sel=c.id;drawTL();drawProps();dirty();return}}};const vp=$('#vp');vp.ondragover=e=>e.preventDefault();vp.ondrop=e=>{const d=e.dataTransfer.getData('text/plain');if(d.startsWith('m:')){e.preventDefault();addClip(d.slice(2),P.media[d.slice(2)]?.type=='audio'?'A1':'V1',T)}else if(/^(fx|pr|tr):/.test(d)){e.preventDefault();const c=cur()&&!isA(cur())?cur():[...P.clips].reverse().find(x=>!isA(x)&&T>=x.start&&T<x.start+x.dur);c?dropOn(c,d):toast('No clip under the playhead to apply this to.',1)}};
+$('#mod').onpointerdown=e=>{if(e.target.id=='mod'&&!exporting)closeMod()};
+(async()=>{drawBar();resizeCv();updateFormatLabel();drawLeft();drawTL();drawProps();loadCustom();listProjects();try{const a=await idb('projects','get','autosave');if(a){await loadProject(JSON.parse(a));toast('Restored your last session')}}catch{}
+$('#pname').value=P.name;setInterval(()=>{if(!exporting&&P.clips.length)idb('projects','put',JSON.stringify(snapshot()),'autosave').then(()=>$('#sv').textContent='Autosaved '+new Date().toLocaleTimeString()).catch(()=>{})},5000);requestAnimationFrame(loop)})();
+</script></body></html>
