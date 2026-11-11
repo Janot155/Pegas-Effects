@@ -20,6 +20,13 @@
    if(!fx.matchName)warnings.push('Effect '+i+' has no stable matchName.');
    (fx.properties||[]).forEach((p,j)=>visit(p,'effects['+i+'].properties['+j+']'))
   });
+  (graph?.transform||[]).forEach((item,i)=>{
+   if(!item?.slot)fail(errors,'Transform property '+i+' has no slot identifier.');
+   if(!item?.property)fail(errors,'Transform property '+i+' has no source property tree.');
+   else visit(item.property,'transform['+i+']');
+  });
+  if(!Array.isArray(graph?.opaque))warnings.push('Opaque node list is missing.');
+  if(!Array.isArray(graph?.expressions))warnings.push('Expression list is missing.');
   if(!graph?.provenance?.sourceFormat)warnings.push('Source format was not recorded.');
   return{valid:errors.length===0,errors,warnings,effects:graph?.effects?.length||0,opaque:graph?.opaque?.length||0,expressions:graph?.expressions?.length||0}
  }
