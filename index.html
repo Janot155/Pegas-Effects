@@ -233,6 +233,7 @@ Object.assign(GLFX,{
  vibrance:{f:'vibrance',u:p=>[p.amt/100]},
  enhance:{expand:p=>[{t:'denoise',p:{amt:p.denoise,detail:50}},{t:'unsharp',p:{amt:p.sharp*.6,r:1.2,thr:0}},{t:'unsharp',p:{amt:p.detail,r:14,thr:0}}]}
 });
+const PREVIEW_CPU_HEAVY=new Set(['ccrays','ccsweep','cckal','ccrep','edge','ghost','enhance','tiltshift','softfocus','bloom','lightleak','grain','glitch','vhs','denoise','unsharp','tonecurve','levels']);
 const glNeeds=d=>d.expand?['denoise','unsharp','copy','gauss']:d.blur!==undefined?['copy','gauss',d.comb]:[d.f];
 function glProg(name){
  let pr=GL.progs[name];if(pr)return pr;const gl=GL.gl;
@@ -723,7 +724,7 @@ const tx=x.al=='left'?-W*.4:x.al=='right'?W*.4:0,ls=s.split('\n');ls.forEach((ln
 function retimeFrameCanvas(id,W,H){let fc=retimeFrames[id];if(fc&&fc.width===W&&fc.height===H){fc._lastUse=performance.now();return fc}if(fc)delete retimeFrames[id];const limit=(navigator.deviceMemory||4)<=4?2:4;while(Object.keys(retimeFrames).length>=limit){let oldest=null,stamp=Infinity;for(const key in retimeFrames){const q=retimeFrames[key];if((q._lastUse||0)<stamp){oldest=key;stamp=q._lastUse||0}}if(oldest===null)break;delete retimeFrames[oldest]}fc=document.createElement('canvas');fc.width=W;fc.height=H;fc._lastUse=performance.now();retimeFrames[id]=fc;return fc}
 function drawClip(ctx,c,t,W,H,k){
  const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);
- const media=P.media[c.media],retimed=!!(c.timeMap||c.rev||hasPT(c));
+ const media=P.media[c.media],retimed=!!(c.timeMap||c.rev||hasPT(c)),perfSettings=window.CutroomPerformanceConfig?.get?.()||{},smartPreview=!exporting&&playing&&perfSettings.effectPreviewMode==='smart';
  if(c.text)drawText(a,c,lt,W,H);else{
   const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;
   const srcFps=Math.max(1,media?.fps||P.fps||30),desiredTime=Number.isFinite(e._cutroomDesiredTime)?e._cutroomDesiredTime:(Number(e.currentTime)||0),desiredFrame=Math.round(desiredTime*srcFps);
@@ -743,7 +744,7 @@ function drawClip(ctx,c,t,W,H,k){
  let src=A,dst=null,batch=[];const needDst=()=>dst||(dst=sc('B',W,H));
 const cpu=b=>{const target=needDst();try{const d=target.getContext('2d');if(!d)throw Error('2D canvas context unavailable');d.setTransform(1,0,0,1,0,0);d.clearRect(0,0,W,H);d.filter='none';d.globalAlpha=1;d.globalCompositeOperation='source-over';d.imageSmoothingEnabled=true;d.save();try{FX[b.t].f(d,src,b.p,W,H,t)}finally{d.restore()}[src,dst]=[target,src];return true}catch(err){console.warn('Skipping failed effect during render:',b.t,err);if(exporting?.fxWarnings)exporting.fxWarnings.add(b.t);return false}};
 const flush=()=>{if(!batch.length)return;const b=batch;batch=[];const target=needDst();let ok=false;try{ok=glRun(src,b,W,H,t,target)}catch(e){glFatal(e)}if(ok)[src,dst]=[target,src];else for(const x of b)cpu(x)};
-for(const f of c.fx){if(f.off||!FX[f.t])continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
+for(const f of c.fx){if(f.off||!FX[f.t])continue;if(smartPreview&&PREVIEW_CPU_HEAVY.has(f.t)&&(!GL.on||GL.ok===false||GL.bad.has(f.t)||!GLFX[f.t]))continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
 flush();let o=get(c,'tr.o',lt)/100,s=get(c,'tr.s',lt)/100,r=get(c,'tr.r',lt)*rad,x=get(c,'tr.x',lt)*k,y=get(c,'tr.y',lt)*k,bl=0,fl=0;if(c.tin&&lt<c.tin.d){const m=TR[c.tin.t][1](lt/c.tin.d);o*=m.o??1;s*=m.s??1;r+=(m.r??0)*rad;x+=(m.x??0)*W;y+=(m.y??0)*W;bl=m.bl??0;fl=m.fl??0}ctx.save();ctx.globalAlpha=clamp(o,0,1);ctx.translate(W/2+x,H/2+y);ctx.rotate(r);ctx.scale(s,s);if(bl)ctx.filter=`blur(${bl*k}px)`;ctx.drawImage(src,-W/2,-H/2);ctx.restore();if(fl>0){ctx.globalAlpha=fl;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
 function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a){try{drawClip(ctx,c,t,W,H,k)}catch(err){console.warn('Skipping clip render failure:',P.media[c.media]?.name||c.id,err);if(exporting?.fxWarnings)exporting.fxWarnings.add('clip '+(P.media[c.media]?.name||c.id))}}}}
 function requestVideoSeek(e,st,fps,clipId){
@@ -960,16 +961,17 @@ function performanceDlg(){
  const gpu=el('input');gpu.type='number';gpu.min=16;gpu.max=512;gpu.step=16;gpu.value=cfg.gpuCacheMB||96;field('GPU cache MB',gpu);
  const retime=el('input');retime.type='number';retime.min=16;retime.max=512;retime.step=16;retime.value=cfg.retimeCacheMB||96;field('Reverse / boomerang cache MB',retime);
  const adaptive=el('input');adaptive.type='checkbox';adaptive.checked=cfg.adaptiveQuality!==false;field('Adaptive preview quality',adaptive);
+ const effectMode=el('select');[['smart','Smart preview · fastest'],['all','All effects in preview']].forEach(([v,n])=>effectMode.add(new Option(n,v)));effectMode.value=cfg.effectPreviewMode||'smart';field('Effect preview mode',effectMode,'Smart mode may skip selected CPU-heavy effects while playing; paused preview and export always use all effects.');
  const useRetime=el('input');useRetime.type='checkbox';useRetime.checked=cfg.retimeCacheEnabled!==false;field('Retime frame cache',useRetime);
  const maxPixels=el('input');maxPixels.type='number';maxPixels.min=2.1;maxPixels.max=33.5;maxPixels.step=.5;maxPixels.value=((cfg.exportMaxPixels||16777216)/1e6).toFixed(1);field('Export pixel budget (MP)',maxPixels);
  const exportFps=el('select');[24,30,50,60,90,120].forEach(v=>exportFps.add(new Option(v+' fps maximum',v)));exportFps.value=cfg.exportMaxFps||60;field('Maximum export FPS',exportFps);
  const bitrate=el('input');bitrate.type='number';bitrate.min=12;bitrate.max=160;bitrate.step=4;bitrate.value=cfg.exportBitrateCapMbps||80;field('Export bitrate cap Mbps',bitrate);
  const yieldFrames=el('input');yieldFrames.type='number';yieldFrames.min=1;yieldFrames.max=12;yieldFrames.step=1;yieldFrames.value=cfg.exportYieldEveryFrames||2;field('Yield to browser every N frames',yieldFrames);
- const markCustom=()=>{profile.value='custom'};[previewFps,scale,cache,gpu,retime,adaptive,useRetime,maxPixels,exportFps,bitrate,yieldFrames].forEach(x=>x.addEventListener('change',markCustom));
+ const markCustom=()=>{profile.value='custom'};[previewFps,scale,cache,gpu,retime,adaptive,useRetime,effectMode,maxPixels,exportFps,bitrate,yieldFrames].forEach(x=>x.addEventListener('change',markCustom));
  const apply=()=>{
   let next;
   if(['auto','performance','balanced','quality'].includes(profile.value))next=window.CutroomPerformanceConfig.setProfile(profile.value);
-  else next=window.CutroomPerformanceConfig.save({profile:'custom',previewFps:+previewFps.value,previewScale:+scale.value,previewCacheMB:+cache.value,gpuCacheMB:+gpu.value,retimeCacheMB:+retime.value,adaptiveQuality:adaptive.checked,retimeCacheEnabled:useRetime.checked,exportMaxPixels:Math.round((+maxPixels.value||16.8)*1e6),exportMaxFps:+exportFps.value,exportBitrateCapMbps:+bitrate.value,exportYieldEveryFrames:+yieldFrames.value});
+  else next=window.CutroomPerformanceConfig.save({profile:'custom',previewFps:+previewFps.value,previewScale:+scale.value,previewCacheMB:+cache.value,gpuCacheMB:+gpu.value,retimeCacheMB:+retime.value,adaptiveQuality:adaptive.checked,retimeCacheEnabled:useRetime.checked,effectPreviewMode:effectMode.value,exportMaxPixels:Math.round((+maxPixels.value||16.8)*1e6),exportMaxFps:+exportFps.value,exportBitrateCapMbps:+bitrate.value,exportYieldEveryFrames:+yieldFrames.value});
   applyPerformanceConfig(next);closeMod();toast('Performance settings saved.')
  };
  modal(body,[['Reset',()=>{const next=window.CutroomPerformanceConfig.reset();applyPerformanceConfig(next);closeMod();toast('Performance settings reset.')}],['Cancel'],['Apply',apply]]);
