@@ -36,13 +36,16 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 <link rel="stylesheet" href="./src/styles/retime-graph.css">
 </head><body>
 <div id="app">
-<header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
+<header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bPerf">Performance</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
 <aside id="left"><nav id="ltabs"></nav><div id="lbody"></div></aside><div class="sp" id="sl"></div>
 <main id="center"><div id="vp"><canvas id="cv"></canvas></div><div id="pbar"><button id="bH" title="Start">⏮</button><button id="bB" title="Previous frame">◀</button><button id="bP" class="pri" title="Space">▶ Play</button><button id="bF" title="Next frame">▶▏</button><button id="bE" title="End">⏭</button><span id="tc"></span><span class="gap"></span><button id="bGpu" class="on" title="GPU effects">GPU</button><span id="fps" style="color:var(--mu)"></span><select id="zm" aria-label="Zoom"><option value="0">Fit</option><option value=".5">50%</option><option value="1">100%</option><option value="2">200%</option></select><select id="ql" aria-label="Preview quality" title="Preview renders at full project resolution. Export remains full resolution too."><option value="1" selected>Full quality · 100%</option><option value=".75">75%</option><option value=".5">Half</option><option value=".25">Quarter</option><option value=".125">Maximum performance</option></select><button id="bFs">Fullscreen</button></div></main><div class="sp" id="sr"></div>
 <aside id="right"></aside><div class="sp" id="hs"></div>
 <section id="tl"><div id="tbar"></div><div id="tscroll"><div id="tlin"></div></div></section>
 </div><svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="fsharp" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" preserveAlpha="true"/></filter><filter id="fedge" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/></filter></svg><div id="toasts"></div><div id="mod"><div></div></div>
 <input type="file" id="fm" multiple hidden accept="video/*,image/*,audio/*,.mp4,.m4v,.mov,.webm,.avi,.png,.jpg,.jpeg,.gif,.wav,.mp3,.aac,.ffx,.json"><input type="file" id="fp" hidden accept=".json,.ffx"><input type="file" id="fj" hidden accept=".json">
+<script src="./src/config/PerformanceConfig.js"></script>
+<script src="./src/performance/PerformanceController.js"></script>
+<script src="./src/performance/RetimeFrameCache.js"></script>
 <script src="./src/performance/RuntimeProfile.js"></script>
 <script src="./src/audio/EmbeddedVideoAudio.js"></script>
 <script src="./src/retime/GraphEditor.js"></script>
@@ -155,7 +158,7 @@ tiltshift:{n:'Tilt-Shift',p:{pos:[50,0,100],size:[25,1,60],r:[10,0,60]},f(d,s,p,
 // driver allows it), and the result is read back into the 2D pipeline with ONE drawImage.
 // Anything that fails to compile, or any runtime GL error, falls back to the original
 // Canvas2D implementation, so no effect is ever lost.
-const GL={ok:null,on:true,bad:new Set(),progs:{},pool:[],W:0,H:0,half:false,passes:0,runs:0,fatal:false};
+const GL={ok:null,on:true,bad:new Set(),progs:{},pool:[],poolBudget:window.CutroomRuntimeProfile?.gpuCacheBytes||96*1048576,poolBytes:0,W:0,H:0,half:false,passes:0,runs:0,fatal:false};
 const GLV=`#version 300 es
 layout(location=0) in vec2 a;out vec2 uv;void main(){uv=a*.5+.5;gl_Position=vec4(a,0.,1.);}`;
 const GLH=`#version 300 es
@@ -260,15 +263,20 @@ function glFatal(e){console.error('GPU effects disabled:',e);if(GL.fatal)return;
 const glUsable=t=>!!GLFX[t]&&GL.on&&!GL.bad.has(t)&&glInit();
 const glDiscount=t=>(GL.ok&&GL.on&&GLFX[t]&&!GL.bad.has(t))?.35:1;
 function glUI(){const b=document.getElementById('bGpu');if(!b)return;b.classList.toggle('on',GL.on&&GL.ok!==false);b.title=GL.ok===false?'GPU effects unavailable on this device — using CPU renderer':GL.on?'GPU effects on (click to switch to CPU renderer)':'GPU effects off (click to enable)'}
-function glDisposePool(){const gl=GL.gl;for(const r of GL.pool){gl.deleteFramebuffer(r.fbo);gl.deleteTexture(r.tex)}GL.pool=[]}
+function glDisposePool(){const gl=GL.gl;for(const r of GL.pool){gl.deleteFramebuffer(r.fbo);gl.deleteTexture(r.tex)}GL.pool=[];GL.poolBytes=0}
 function getRT(w,h){
  const gl=GL.gl;let r=GL.pool.find(x=>x.free&&x.w===w&&x.h===h);if(r){r.free=false;return r}
- const free=GL.pool.filter(x=>x.free);if(GL.pool.length>6&&free.length){const o=free[0];gl.deleteFramebuffer(o.fbo);gl.deleteTexture(o.tex);GL.pool.splice(GL.pool.indexOf(o),1)}
+ const needed=w*h*(GL.half?8:4);
+ while(GL.poolBytes+needed>GL.poolBudget){
+  const idx=GL.pool.findIndex(x=>x.free);if(idx<0)break;
+  const o=GL.pool.splice(idx,1)[0];GL.poolBytes=Math.max(0,GL.poolBytes-(o.bytes||o.w*o.h*4));
+  gl.deleteFramebuffer(o.fbo);gl.deleteTexture(o.tex);
+ }
  for(let attempt=0;attempt<2;attempt++){
   const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);glParams(gl);
   gl.texImage2D(gl.TEXTURE_2D,0,GL.half?gl.RGBA16F:gl.RGBA8,w,h,0,gl.RGBA,GL.half?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,null);
   const fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
-  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,free:false};GL.pool.push(r);return r}
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,bytes:w*h*(GL.half?8:4),free:false};GL.pool.push(r);GL.poolBytes+=r.bytes;return r}
   gl.deleteFramebuffer(fbo);gl.deleteTexture(tex);if(!GL.half)break;GL.half=false;glDisposePool()
  }
  throw Error('Cannot create render target '+w+'x'+h)
@@ -324,7 +332,7 @@ function glSelfTest(){
  GL.W=0;GL.H=0;return true
 }
 /* ----- preview frame cache: bounded LRU of fully composited frames, paused/scrub only ----- */
-const FC={map:new Map(),bytes:0,max:(window.CutroomRuntimeProfile?.cacheBytes||Math.min(192,(navigator.deviceMemory||4)*32)*1048576),hits:0,miss:0,sig:'',spare:[]};
+const FC={map:new Map(),bytes:0,max:(window.CutroomRuntimeProfile?.cacheBytes||72*1048576),hits:0,miss:0,sig:'',spare:[]};
 function fcClear(){for(const c of FC.map.values())if(FC.spare.length<4)FC.spare.push(c);FC.map.clear();FC.bytes=0;FC.sig=''}
 const projSig=()=>JSON.stringify([P.tracks,P.clips,P.w,P.h,P.fit,P.fps])+'|'+Object.keys(blobs).length;
 function previewSettled(t){
@@ -652,14 +660,14 @@ async function showPresetPreview(pr){
 }
 /* ---------- state ---------- */
 const newProj=()=>({name:'Untitled',w:1920,h:1080,format:'landscape',fit:'contain',fps:30,tracks:[{id:'T1',n:'Text',k:'t'},{id:'V2',n:'Video 2',k:'v'},{id:'V1',n:'Video 1',k:'v'},{id:'A1',n:'Audio 1',k:'a'},{id:'A2',n:'Audio 2',k:'a'}],clips:[],media:{}});
-let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=1,qualityMode='manual',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
+let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=(window.CutroomPerformance?.getScale?.()||.58),qualityMode='adaptive',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
 const blobs={},urls={},els={},gains={},peaks={},selectedMedia=new Set(),HW=132,cur=()=>P.clips.find(c=>c.id==sel),dirty=()=>dirtyN=1,endT=()=>Math.max(0,...P.clips.map(c=>c.start+c.dur)),trk=id=>P.tracks.find(t=>t.id==id);
 const isA=c=>!c.text&&P.media[c.media]?.type=='audio',kind=c=>c.text?'t':isA(c)?'a':'v',url=id=>urls[id]??=URL.createObjectURL(blobs[id]);
 const anySolo=()=>P.tracks.some(t=>t.solo),live=tr=>!tr.hide&&(!anySolo()||tr.solo),audible=tr=>!tr.mute&&(!anySolo()||tr.solo);
 function snap(tag='x'){const n=Date.now();if(tag==lastTag&&n-lastT<700){lastT=n;return}lastTag=tag;lastT=n;hist.push(JSON.stringify([P.tracks,P.clips]));if(hist.length>150)hist.shift();redoS=[]}
 function restore(s){[P.tracks,P.clips]=JSON.parse(s);if(!cur())sel=null;gc();drawTL();drawProps();dirty()}
 const undo=()=>{if(hist.length){redoS.push(JSON.stringify([P.tracks,P.clips]));restore(hist.pop());lastTag=''}},redo=()=>{if(redoS.length){hist.push(JSON.stringify([P.tracks,P.clips]));restore(redoS.pop());lastTag=''}};
-function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();window.CutroomEmbeddedAudio?.dispose(id);delete els[id];delete gains[id];delete retimeFrames[id]}}
+function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();window.CutroomEmbeddedAudio?.dispose(id);delete els[id];delete gains[id];delete retimeFrames[id];window.CutroomRetimeCache?.clearClip?.(id)}}
 /* ---------- media manager ---------- */
 function ensureAC(){if(!AC){AC=new AudioContext();MD=AC.createMediaStreamDestination();master=AC.createGain();master.connect(AC.destination);master.connect(MD)}return AC}
 const waitEv=(e,ev,ms=9000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout')),ms);e.addEventListener(ev,()=>{clearTimeout(t);res()},{once:true});e.addEventListener('error',()=>{clearTimeout(t);rej(new Error('decode'))},{once:true})});
