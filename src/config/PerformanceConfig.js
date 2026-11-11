@@ -60,11 +60,16 @@
   try{localStorage.setItem(KEY,JSON.stringify(current))}catch{}
   return current;
  }
+ function presetFor(profile){
+  if(profile==='auto')return clean({...BASE,...autoPreset(),profile:'auto'});
+  if(PRESETS[profile])return clean({...BASE,...PRESETS[profile],profile});
+  return clean({...current,profile:'custom'});
+ }
  function setProfile(profile){
   if(profile==='auto')return save({...autoPreset(),profile:'auto'});
   if(PRESETS[profile])return save({...PRESETS[profile],profile});
   return save({profile:'custom'});
  }
  function reset(){try{localStorage.removeItem(KEY)}catch{}current=read();return current}
- window.CutroomPerformanceConfig={BASE,PRESETS,device,get:()=>({...current}),save,setProfile,reset,refresh:()=>{current=read();return current}};
+ window.CutroomPerformanceConfig={BASE,PRESETS,device,presetFor,get:()=>({...current}),save,setProfile,reset,refresh:()=>{current=read();return current}};
 })();
