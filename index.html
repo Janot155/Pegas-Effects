@@ -36,13 +36,16 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 <link rel="stylesheet" href="./src/styles/retime-graph.css">
 </head><body>
 <div id="app">
-<header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
+<header id="top"><span class="logo">Cutroom</span><input id="pname" aria-label="Project name"><button id="bNew">New</button><button id="bSave">Save</button><select id="sOpen" aria-label="Open project"><option value="">Open…</option></select><button id="bPE">Export project</button><button id="bPI">Import project</button><button id="bSet">Settings</button><button id="bPerf">Performance</button><button id="bFormat">Canvas format</button><span id="fmtlabel" style="color:var(--mu);font-size:11px">1920×1080 · 16:9</span><button id="bUn">Undo</button><button id="bRe">Redo</button><span id="sv"></span><span class="gap"></span><button id="bExp" class="pri">Export video</button></header>
 <aside id="left"><nav id="ltabs"></nav><div id="lbody"></div></aside><div class="sp" id="sl"></div>
 <main id="center"><div id="vp"><canvas id="cv"></canvas></div><div id="pbar"><button id="bH" title="Start">⏮</button><button id="bB" title="Previous frame">◀</button><button id="bP" class="pri" title="Space">▶ Play</button><button id="bF" title="Next frame">▶▏</button><button id="bE" title="End">⏭</button><span id="tc"></span><span class="gap"></span><button id="bGpu" class="on" title="GPU effects">GPU</button><span id="fps" style="color:var(--mu)"></span><select id="zm" aria-label="Zoom"><option value="0">Fit</option><option value=".5">50%</option><option value="1">100%</option><option value="2">200%</option></select><select id="ql" aria-label="Preview quality" title="Preview renders at full project resolution. Export remains full resolution too."><option value="1" selected>Full quality · 100%</option><option value=".75">75%</option><option value=".5">Half</option><option value=".25">Quarter</option><option value=".125">Maximum performance</option></select><button id="bFs">Fullscreen</button></div></main><div class="sp" id="sr"></div>
 <aside id="right"></aside><div class="sp" id="hs"></div>
 <section id="tl"><div id="tbar"></div><div id="tscroll"><div id="tlin"></div></div></section>
 </div><svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="fsharp" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" preserveAlpha="true"/></filter><filter id="fedge" color-interpolation-filters="sRGB"><feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/></filter></svg><div id="toasts"></div><div id="mod"><div></div></div>
 <input type="file" id="fm" multiple hidden accept="video/*,image/*,audio/*,.mp4,.m4v,.mov,.webm,.avi,.png,.jpg,.jpeg,.gif,.wav,.mp3,.aac,.ffx,.json"><input type="file" id="fp" hidden accept=".json,.ffx"><input type="file" id="fj" hidden accept=".json">
+<script src="./src/config/PerformanceConfig.js"></script>
+<script src="./src/performance/PerformanceController.js"></script>
+<script src="./src/performance/RetimeFrameCache.js"></script>
 <script src="./src/performance/RuntimeProfile.js"></script>
 <script src="./src/audio/EmbeddedVideoAudio.js"></script>
 <script src="./src/retime/GraphEditor.js"></script>
@@ -155,7 +158,7 @@ tiltshift:{n:'Tilt-Shift',p:{pos:[50,0,100],size:[25,1,60],r:[10,0,60]},f(d,s,p,
 // driver allows it), and the result is read back into the 2D pipeline with ONE drawImage.
 // Anything that fails to compile, or any runtime GL error, falls back to the original
 // Canvas2D implementation, so no effect is ever lost.
-const GL={ok:null,on:true,bad:new Set(),progs:{},pool:[],W:0,H:0,half:false,passes:0,runs:0,fatal:false};
+const GL={ok:null,on:true,bad:new Set(),progs:{},pool:[],poolBudget:window.CutroomRuntimeProfile?.gpuCacheBytes||96*1048576,poolBytes:0,W:0,H:0,half:false,passes:0,runs:0,fatal:false};
 const GLV=`#version 300 es
 layout(location=0) in vec2 a;out vec2 uv;void main(){uv=a*.5+.5;gl_Position=vec4(a,0.,1.);}`;
 const GLH=`#version 300 es
@@ -260,15 +263,21 @@ function glFatal(e){console.error('GPU effects disabled:',e);if(GL.fatal)return;
 const glUsable=t=>!!GLFX[t]&&GL.on&&!GL.bad.has(t)&&glInit();
 const glDiscount=t=>(GL.ok&&GL.on&&GLFX[t]&&!GL.bad.has(t))?.35:1;
 function glUI(){const b=document.getElementById('bGpu');if(!b)return;b.classList.toggle('on',GL.on&&GL.ok!==false);b.title=GL.ok===false?'GPU effects unavailable on this device — using CPU renderer':GL.on?'GPU effects on (click to switch to CPU renderer)':'GPU effects off (click to enable)'}
-function glDisposePool(){const gl=GL.gl;for(const r of GL.pool){gl.deleteFramebuffer(r.fbo);gl.deleteTexture(r.tex)}GL.pool=[]}
+function glDisposePool(){const gl=GL.gl;for(const r of GL.pool){gl.deleteFramebuffer(r.fbo);gl.deleteTexture(r.tex)}GL.pool=[];GL.poolBytes=0}
 function getRT(w,h){
  const gl=GL.gl;let r=GL.pool.find(x=>x.free&&x.w===w&&x.h===h);if(r){r.free=false;return r}
- const free=GL.pool.filter(x=>x.free);if(GL.pool.length>6&&free.length){const o=free[0];gl.deleteFramebuffer(o.fbo);gl.deleteTexture(o.tex);GL.pool.splice(GL.pool.indexOf(o),1)}
+ const needed=w*h*(GL.half?8:4);
+ while(GL.poolBytes+needed>GL.poolBudget){
+  const idx=GL.pool.findIndex(x=>x.free);if(idx<0)break;
+  const o=GL.pool.splice(idx,1)[0];GL.poolBytes=Math.max(0,GL.poolBytes-(o.bytes||o.w*o.h*4));
+  gl.deleteFramebuffer(o.fbo);gl.deleteTexture(o.tex);
+ }
+ if(GL.poolBytes+needed>GL.poolBudget)throw Error('GPU render-target memory budget reached');
  for(let attempt=0;attempt<2;attempt++){
   const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);glParams(gl);
   gl.texImage2D(gl.TEXTURE_2D,0,GL.half?gl.RGBA16F:gl.RGBA8,w,h,0,gl.RGBA,GL.half?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,null);
   const fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
-  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,free:false};GL.pool.push(r);return r}
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE){r={tex,fbo,w,h,bytes:w*h*(GL.half?8:4),free:false};GL.pool.push(r);GL.poolBytes+=r.bytes;return r}
   gl.deleteFramebuffer(fbo);gl.deleteTexture(tex);if(!GL.half)break;GL.half=false;glDisposePool()
  }
  throw Error('Cannot create render target '+w+'x'+h)
@@ -324,15 +333,19 @@ function glSelfTest(){
  GL.W=0;GL.H=0;return true
 }
 /* ----- preview frame cache: bounded LRU of fully composited frames, paused/scrub only ----- */
-const FC={map:new Map(),bytes:0,max:(window.CutroomRuntimeProfile?.cacheBytes||Math.min(192,(navigator.deviceMemory||4)*32)*1048576),hits:0,miss:0,sig:'',spare:[]};
+const FC={map:new Map(),bytes:0,max:(window.CutroomRuntimeProfile?.cacheBytes||72*1048576),hits:0,miss:0,sig:'',spare:[]};
 function fcClear(){for(const c of FC.map.values())if(FC.spare.length<4)FC.spare.push(c);FC.map.clear();FC.bytes=0;FC.sig=''}
 const projSig=()=>JSON.stringify([P.tracks,P.clips,P.w,P.h,P.fit,P.fps])+'|'+Object.keys(blobs).length;
 function previewSettled(t){
  for(const c of P.clips){
-  if(t<c.start||t>=c.start+c.dur||c.text)continue;const m=P.media[c.media];if(!m)continue;const tr=trk(c.track);if(!tr||!live(tr))continue;
-  const e=els[c.id];if(m.type==='image'){if(!e||!e.complete)return false;continue}if(m.type!=='video')continue;
-  if(!e||e.seeking||e._cutroomSeeking||e.readyState<2||e._cutroomDesiredTime==null)return false;
-  const f=Math.max(1,m.fps||P.fps||30);if(Math.round(e._cutroomDesiredTime*f)!==Math.round(e.currentTime*f))return false
+  if(t<c.start||t>=c.start+c.dur||c.text)continue;
+  const m=P.media[c.media];if(!m)continue;const tr=trk(c.track);if(!tr||!live(tr))continue;
+  const e=els[c.id];if(m.type==='image'){if(!e||!e.complete)return false;continue}
+  if(m.type!=='video')continue;if(!e)return false;
+  const fps=Math.max(1,m.fps||P.fps||30),frame=Math.round((Number(e._cutroomDesiredTime)||0)*fps);
+  if(window.CutroomRetimeCache?.has?.(c.id,frame,cv.width,cv.height))continue;
+  if(e.seeking||e._cutroomSeeking||e.readyState<2||e._cutroomDesiredTime==null)return false;
+  if(Math.round(e._cutroomDesiredTime*fps)!==Math.round(e.currentTime*fps))return false
  }return true
 }
 function fcPut(key,W,H){
@@ -652,14 +665,14 @@ async function showPresetPreview(pr){
 }
 /* ---------- state ---------- */
 const newProj=()=>({name:'Untitled',w:1920,h:1080,format:'landscape',fit:'contain',fps:30,tracks:[{id:'T1',n:'Text',k:'t'},{id:'V2',n:'Video 2',k:'v'},{id:'V1',n:'Video 1',k:'v'},{id:'A1',n:'Audio 1',k:'a'},{id:'A2',n:'Audio 2',k:'a'}],clips:[],media:{}});
-let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=1,qualityMode='manual',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
+let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=(window.CutroomPerformance?.getScale?.()||.58),qualityMode=(window.CutroomPerformanceConfig?.get?.().adaptiveQuality===false?'manual':'adaptive'),exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
 const blobs={},urls={},els={},gains={},peaks={},selectedMedia=new Set(),HW=132,cur=()=>P.clips.find(c=>c.id==sel),dirty=()=>dirtyN=1,endT=()=>Math.max(0,...P.clips.map(c=>c.start+c.dur)),trk=id=>P.tracks.find(t=>t.id==id);
 const isA=c=>!c.text&&P.media[c.media]?.type=='audio',kind=c=>c.text?'t':isA(c)?'a':'v',url=id=>urls[id]??=URL.createObjectURL(blobs[id]);
 const anySolo=()=>P.tracks.some(t=>t.solo),live=tr=>!tr.hide&&(!anySolo()||tr.solo),audible=tr=>!tr.mute&&(!anySolo()||tr.solo);
 function snap(tag='x'){const n=Date.now();if(tag==lastTag&&n-lastT<700){lastT=n;return}lastTag=tag;lastT=n;hist.push(JSON.stringify([P.tracks,P.clips]));if(hist.length>150)hist.shift();redoS=[]}
 function restore(s){[P.tracks,P.clips]=JSON.parse(s);if(!cur())sel=null;gc();drawTL();drawProps();dirty()}
 const undo=()=>{if(hist.length){redoS.push(JSON.stringify([P.tracks,P.clips]));restore(hist.pop());lastTag=''}},redo=()=>{if(redoS.length){hist.push(JSON.stringify([P.tracks,P.clips]));restore(redoS.pop());lastTag=''}};
-function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();window.CutroomEmbeddedAudio?.dispose(id);delete els[id];delete gains[id];delete retimeFrames[id]}}
+function gc(){for(const id in els)if(!P.clips.find(c=>c.id==id)){els[id].pause?.();gains[id]?.disconnect();window.CutroomEmbeddedAudio?.dispose(id);delete els[id];delete gains[id];delete retimeFrames[id];window.CutroomRetimeCache?.clearClip?.(id)}}
 /* ---------- media manager ---------- */
 function ensureAC(){if(!AC){AC=new AudioContext();MD=AC.createMediaStreamDestination();master=AC.createGain();master.connect(AC.destination);master.connect(MD)}return AC}
 const waitEv=(e,ev,ms=9000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout')),ms);e.addEventListener(ev,()=>{clearTimeout(t);res()},{once:true});e.addEventListener('error',()=>{clearTimeout(t);rej(new Error('decode'))},{once:true})});
@@ -710,18 +723,43 @@ function dup(){const c=cur();if(!c)return;snap('dup');const r=JSON.parse(JSON.st
 function drawText(d,c,lt,W,H){const x=c.text,k=W/P.w;let s=x.s,a=1,ox=0,oy=0,sc=1,u=clamp(lt/.6,0,1);switch(x.an){case'pop':sc=EASE.bezier(u);break;case'fade':a=u;break;case'slide':ox=(1-EASE.out(u))*-300;a=u;break;case'type':s=s.slice(0,Math.floor(lt*14));break;case'bounce':oy=-Math.abs(Math.sin(lt*7))*60*Math.max(0,1-lt/1.5);break;case'glitch':if(Math.random()<.3)ox=(Math.random()-.5)*30;break;case'zoom':sc=3-2*EASE.out(u);a=u}
 d.save();d.translate(W/2+ox*k,H/2+oy*k);d.scale(sc,sc);d.globalAlpha=a;d.font=`${x.i?'italic ':''}${x.b?'700':'400'} ${x.size*k}px "${x.font}", sans-serif`;d.textAlign=x.al;d.textBaseline='middle';d.letterSpacing=x.ls*k+'px';if(x.sh){d.shadowColor='rgba(0,0,0,.7)';d.shadowBlur=x.sh*k;d.shadowOffsetY=x.sh/2*k}
 const tx=x.al=='left'?-W*.4:x.al=='right'?W*.4:0,ls=s.split('\n');ls.forEach((ln,i)=>{const y=(i-(ls.length-1)/2)*x.size*1.2*k;if(x.sw){d.lineWidth=x.sw*k;d.strokeStyle=x.sc;d.lineJoin='round';d.strokeText(ln,tx,y)}d.fillStyle=x.col;d.fillText(ln,tx,y)});d.restore()}
-function drawClip(ctx,c,t,W,H,k){const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);if(c.text)drawText(a,c,lt,W,H);else{const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;const s=(P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh)),x=(W-sw*s)/2,y=(H-sh*s)/2,retimed=!!(c.timeMap||c.rev||hasPT(c)),cache=retimeFrames[c.id];if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){if(retimed&&cache&&cache.width===W&&cache.height===H)a.drawImage(cache,0,0);else return}else{a.drawImage(e,x,y,sw*s,sh*s);if(retimed){let fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){fc=retimeFrames[c.id]=document.createElement('canvas');fc.width=W;fc.height=H}const fg=fc.getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)}}}
-let src=A,dst=sc('B',W,H),batch=[];
+function drawClip(ctx,c,t,W,H,k){
+ const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);
+ const media=P.media[c.media],retimed=!!(c.timeMap||c.rev||hasPT(c)),perfSettings=window.CutroomPerformanceConfig?.get?.()||{},smartPreview=!exporting&&playing&&perfSettings.effectPreviewMode==='smart';
+ if(c.text)drawText(a,c,lt,W,H);else{
+  const e=elFor(c);if(!e)return;
+  const srcFps=Math.max(1,media?.fps||P.fps||30),desiredTime=Number.isFinite(e._cutroomDesiredTime)?e._cutroomDesiredTime:(Number(e.currentTime)||0),desiredFrame=Math.round(desiredTime*srcFps);
+  // Check the retime cache before asking the HTMLVideoElement for metadata.
+  // A fully pre-cached reverse clip can render immediately even while the
+  // editor's own video decoder is still loading its first frame.
+  const cached=retimed?window.CutroomRetimeCache?.get?.(c.id,desiredFrame,W,H):null;
+  if(cached)a.drawImage(cached,0,0,W,H);
+  else{
+   const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;
+   if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){
+    const fallback=retimeFrames[c.id];if(retimed&&fallback&&fallback.width===W&&fallback.height===H)a.drawImage(fallback,0,0);else return;
+   }else{
+    const fit=P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh),x=(W-sw*fit)/2,y=(H-sh*fit)/2;
+    a.drawImage(e,x,y,sw*fit,sh*fit);
+    if(retimed&&!exporting){
+     window.CutroomRetimeCache?.store?.(c.id,desiredFrame,W,H,A);
+     const fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){retimeFrames[c.id]=document.createElement('canvas');retimeFrames[c.id].width=W;retimeFrames[c.id].height=H}
+     const fg=retimeFrames[c.id].getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)
+    }
+   }
+  }
+ }
+ let src=A,dst=sc('B',W,H),batch=[];
 const cpu=b=>{try{const d=dst.getContext('2d');if(!d)throw Error('2D canvas context unavailable');d.setTransform(1,0,0,1,0,0);d.clearRect(0,0,W,H);d.filter='none';d.globalAlpha=1;d.globalCompositeOperation='source-over';d.imageSmoothingEnabled=true;d.save();try{FX[b.t].f(d,src,b.p,W,H,t)}finally{d.restore()}[src,dst]=[dst,src];return true}catch(err){console.warn('Skipping failed effect during render:',b.t,err);if(exporting?.fxWarnings)exporting.fxWarnings.add(b.t);return false}};
 const flush=()=>{if(!batch.length)return;const b=batch;batch=[];let ok=false;try{ok=glRun(src,b,W,H,t,dst)}catch(e){glFatal(e)}if(ok)[src,dst]=[dst,src];else for(const x of b)cpu(x)};
-for(const f of c.fx){if(f.off||!FX[f.t])continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
+for(const f of c.fx){if(f.off||!FX[f.t])continue;if(smartPreview&&c.fx.length>=8&&PREVIEW_HEAVY_EFFECTS.has(f.t)&&(!GL.on||GL.ok===false||GL.bad.has(f.t)||!GLFX[f.t]))continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
 flush();let o=get(c,'tr.o',lt)/100,s=get(c,'tr.s',lt)/100,r=get(c,'tr.r',lt)*rad,x=get(c,'tr.x',lt)*k,y=get(c,'tr.y',lt)*k,bl=0,fl=0;if(c.tin&&lt<c.tin.d){const m=TR[c.tin.t][1](lt/c.tin.d);o*=m.o??1;s*=m.s??1;r+=(m.r??0)*rad;x+=(m.x??0)*W;y+=(m.y??0)*W;bl=m.bl??0;fl=m.fl??0}ctx.save();ctx.globalAlpha=clamp(o,0,1);ctx.translate(W/2+x,H/2+y);ctx.rotate(r);ctx.scale(s,s);if(bl)ctx.filter=`blur(${bl*k}px)`;ctx.drawImage(src,-W/2,-H/2);ctx.restore();if(fl>0){ctx.globalAlpha=fl;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
 function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a){try{drawClip(ctx,c,t,W,H,k)}catch(err){console.warn('Skipping clip render failure:',P.media[c.media]?.name||c.id,err);if(exporting?.fxWarnings)exporting.fxWarnings.add('clip '+(P.media[c.media]?.name||c.id))}}}}
-function requestVideoSeek(e,st,fps){
+function requestVideoSeek(e,st,fps,clipId,useCache=true){
  const frame=Math.max(0,Math.round(st*fps)),target=frame/fps;e._cutroomDesiredTime=target;
- // Never interrupt an in-flight decode seek. The render loop draws the last
- // completed frame while it waits, then schedules the newest target afterwards.
- if(e.seeking||e._cutroomSeeking)return false;
+ const size=exporting?.output||cv,w=size?.width||cv.width,h=size?.height||cv.height;
+ if(useCache&&clipId&&window.CutroomRetimeCache?.has?.(clipId,frame,w,h)){e._cutroomUsingCache=true;e._cutroomRequestedFrame=frame;return false}
+ e._cutroomUsingCache=false;if(e.seeking||e._cutroomSeeking)return false;
  const currentFrame=Math.max(0,Math.round((Number(e.currentTime)||0)*fps));
  if(currentFrame===frame){e._cutroomRequestedFrame=frame;return false}
  e.pause();e._cutroomRequestedFrame=frame;e._cutroomSeeking=true;
@@ -735,71 +773,97 @@ function sync(t,play,exportMode=false){
   const tr=trk(c.track),m=P.media[c.media];
   if(c.text||!m||m.type==='image')continue;
   const e=elFor(c);if(!e)continue;
-  const lt=t-c.start,act=lt>=0&&lt<c.dur;
-  const video=m.type==='video';
-  const mp=mappedProgress(c,lt);
-  const remapped=video&&(mp!==null||c.rev||hasPT(c));
+  const lt=t-c.start,act=lt>=0&&lt<c.dur,video=m.type==='video';
   if(AC&&!gains[c.id]){
-   const g=AC.createGain();
-   try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}
+   const g=AC.createGain();try{AC.createMediaElementSource(e).connect(g);g.connect(master);gains[c.id]=g}catch{}
   }
   if(!act){
-   if(!e.paused)e.pause();
-   e.muted=false;
-   window.CutroomEmbeddedAudio?.stop(c.id);
-   e._cutroomRetimeMode='inactive';
-   continue;
+   if(!e.paused)e.pause();e.muted=false;
+   window.CutroomEmbeddedAudio?.stop(c.id);e._cutroomRetimeMode='inactive';continue
   }
+  const remapped=video&&(mappedProgress(c,lt)!==null||c.rev||hasPT(c));
   const fps=Math.max(1,m.fps||P.fps||30),span=Math.max(0,c.dur*c.speed),
    mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,
    mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;
+  const mp=video?mappedProgress(c,lt):null;
   let st;
   if(video&&mp!==null){st=mapIn+mp*mapSpan;if(mp>=.999999)st-=frame}
   else if(video&&c.rev)st=c.in+Math.max(0,span-qt(c,lt)*c.speed-frame);
   else st=c.in+qt(c,lt)*c.speed;
   st=clamp(st,0,Math.max(0,(m.dur||1e9)-frame));
   const gv=get(c,'vol',lt)/100*(c.fi&&lt<c.fi?lt/c.fi:1)*(c.fo&&c.dur-lt<c.fo?(c.dur-lt)/c.fo:1)*(audible(tr)&&(tr.k==='a'||live(tr))?1:0);
-  if(gains[c.id])gains[c.id].gain.value=remapped?0:gv;
-  else e.volume=remapped?0:clamp(gv,0,1);
+  if(gains[c.id])gains[c.id].gain.value=remapped?0:gv;else e.volume=remapped?0:clamp(gv,0,1);
   if(remapped){
-   // The picture follows the retime curve; the original soundtrack keeps its
-   // own forward-only clock and therefore never reverses or boomerangs.
-   e.muted=true;
-   e.pause();e._cutroomRetimeMode='retimed-video';
+   e.muted=true;e._cutroomRetimeMode='retimed-video';
    if(AC)window.CutroomEmbeddedAudio?.sync(c.id,e.currentSrc||e.src,AC,master,
-      c.in+qt(c,lt)*c.speed,!!play,c.speed,gv,!!(exportMode&&lt<=1.5/Math.max(1,P.fps||30)));
-   requestVideoSeek(e,st,fps);
-   continue;
+    c.in+qt(c,lt)*c.speed,!!play,c.speed,gv,!!(exportMode&&lt<=1.5/Math.max(1,P.fps||30)));
+   e._cutroomDesiredTime=st;
+   if(exportMode||!play){
+    e.pause();requestVideoSeek(e,st,fps,c.id,true);continue
+   }
+   const mappedRate=mappedSpeed(c,lt),current=Number(e.currentTime)||0;
+   if(mappedRate>.035){
+    if(e.seeking||e._cutroomSeeking)continue;
+    if(Math.abs(current-st)>Math.max(.22,3/fps)){
+     requestVideoSeek(e,st,fps,c.id,false);
+     if(e.seeking||e._cutroomSeeking)continue
+    }
+    e._cutroomDesiredTime=Number(e.currentTime)||st;
+    const rate=clamp(mappedRate,.0625,16);
+    if(Math.abs((Number(e.playbackRate)||1)-rate)>.015)e.playbackRate=rate;
+    if(e.paused)requestMediaPlay(e);
+    continue
+   }
+   e.pause();e._cutroomDesiredTime=st;
+   const sourceFrame=Math.round(st*fps);
+   if(mappedRate<-.035){
+    if(window.CutroomRetimeCache?.has?.(c.id,sourceFrame,cv.width,cv.height))continue;
+    if(!e.seeking&&!e._cutroomSeeking)requestVideoSeek(e,st,fps,c.id,false);
+    continue
+   }
+   if(Math.abs(current-st)>1.1/fps&&!e.seeking&&!e._cutroomSeeking)requestVideoSeek(e,st,fps,c.id,false);
+   continue
   }
-  e.muted=false;
-  window.CutroomEmbeddedAudio?.stop(c.id);
+  e.muted=false;window.CutroomEmbeddedAudio?.stop(c.id);
   if(!video){
-   // Audio clips must seek to their own source in-point on export start or
-   // when the playhead is moved; never inherit the previous preview position.
    const startingNow=lt<=1.5/Math.max(1,P.fps||30),needsSync=!play||startingNow||e.paused;
    if(needsSync&&!e.seeking&&Math.abs((Number(e.currentTime)||0)-st)>.025){e.pause();try{e.currentTime=clamp(st,0,Math.max(0,(m.dur||1e9)-.02))}catch{}}
-   if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)requestMediaPlay(e);}
+   if(play){if(e.playbackRate!==c.speed)e.playbackRate=clamp(c.speed,.0625,16);if(e.paused)requestMediaPlay(e)}
    else e.pause();
-   e._cutroomRetimeMode='normal';continue;
+   e._cutroomRetimeMode='normal';continue
   }
   if(play){
-   const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;
+   const rate=clamp(c.speed,.0625,16);if(e.playbackRate!==rate)e.playbackRate=rate;
    if(e.paused)requestMediaPlay(e);
-   if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}
-  }else{e.pause();requestVideoSeek(e,st,fps)}
-  e._cutroomRetimeMode='normal';
+   if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps,c.id,false)}
+  }else{e.pause();requestVideoSeek(e,st,fps,c.id,false)}
+  e._cutroomRetimeMode='normal'
  }
 }
 const cv=$('#cv'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
 function resizeCv(){fcClear();const q=exporting?1:Q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
 function zoomCss(){if(zoomV){cv.style.width=P.w*zoomV+'px';cv.style.height=P.h*zoomV+'px';cv.style.maxWidth=cv.style.maxHeight='none'}else{cv.style.width=P.w+'px';cv.style.height=P.h+'px';cv.style.maxWidth=cv.style.maxHeight='100%'}}
-function adaptPreviewQuality(){/* Full-resolution preview is locked: never change quality or show quality-change notifications. */}
+function adaptPreviewQuality(ms){if(qualityMode==='manual')return;const r=window.CutroomPerformance?.recordPreviewFrame?.(ms);if(r?.changed){Q=r.scale;resizeCv()}}
 function previewComplexity(t){let score=0;for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||isA(c))continue;for(const f of c.fx){if(f.off)continue;score+=glDiscount(f.t)*({dirblur:2,radblur:2,zoomblur:2,glow:2,ccrays:3,cckal:3,ccrep:3,green:3,sharpen:2,edge:2,wave:2}[f.t]||1)}}return score}
-function retimeBusyAt(t){for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||!(c.timeMap||c.rev||hasPT(c)))continue;const tr=trk(c.track);if(!tr||!live(tr)||isA(c))continue;const e=els[c.id];if(e&&(e.seeking||e._cutroomSeeking))return true}return false}
+function retimeBusyAt(t){
+ for(const c of P.clips){
+  if(t<c.start||t>=c.start+c.dur||!(c.timeMap||c.rev||hasPT(c)))continue;
+  const tr=trk(c.track);if(!tr||!live(tr)||isA(c))continue;
+  const e=els[c.id],m=P.media[c.media];if(!e)continue;
+  const fps=Math.max(1,m?.fps||P.fps||30),lt=t-c.start,rate=mappedSpeed(c,lt);
+  if(e.seeking||e._cutroomSeeking)return true;
+  if(rate<=.035){
+   const st=clamp(exportSourceTime(c,t,m),0,Math.max(0,(m?.dur||1e9)-1/fps)),frame=Math.round(st*fps);
+   if(!window.CutroomRetimeCache?.has?.(c.id,frame,cv.width,cv.height))return true
+  }
+ }
+ return false
+}
+
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.1,(now-last)/1000);last=now;
 if(playing&&!exporting){if(!retimeBusyAt(T))T+=dt;const e=endT();if(T>=e){T=e;playing=false;sync(T,false);$('#bP').textContent='▶ Play'}}
-const drawDue=true;
-if(!exporting&&(playing||dirtyN>0)&&drawDue){const started=performance.now();renderPreview();const cost=performance.now()-started;dirtyN=0;adaptPreviewQuality(cost);lastPreviewAt=now;fcount++;sync(T,playing)}
+const drawDue=window.CutroomPerformance?.shouldRender?.(now,playing,dirtyN>0)??(playing||dirtyN>0);
+if(!exporting&&drawDue){const started=performance.now();renderPreview();const cost=performance.now()-started;dirtyN=0;adaptPreviewQuality(cost);lastPreviewAt=now;fcount++;sync(T,playing)}
 if(now-ftime>1000){$('#fps').textContent=[playing?`${Math.round(fcount*1000/(now-ftime))} fps · preview ${Math.round(Q*100)}%`:'',perfLabel()].filter(Boolean).join(' · ');fcount=0;ftime=now}
 const ph=$('#ph');if(ph)ph.style.transform=`translateX(${HW+T*Z}px)`;$('#tc').textContent=tcode(T);if(playing){const s=$('#tscroll');if(HW+T*Z>s.scrollLeft+s.clientWidth-40)s.scrollLeft=HW+T*Z-120}
 if(playing&&(loop.n=(loop.n||0)+1)%4==0)syncProps()}
@@ -832,8 +896,35 @@ const upd=v=>{rg.value=nm.value=+(+v).toFixed(3)},lt=()=>T-c.start,set=v=>{v=+v;
 function syncProps(){rowsReg.forEach(r=>{const lt=T-r.c.start;if(document.activeElement!=r.rg&&document.activeElement!=r.nm)r.upd(get(r.c,r.key,lt));const k=r.c.kf[r.key];r.dia.classList.toggle('on',!!k?.some(x=>Math.abs(x.t-lt)<.5/P.fps));r.dia.classList.toggle('has',!!k?.length)})}
 const putKF=(c,key,t,v)=>{const a=c.kf[key]??=[],i=a.findIndex(k=>Math.abs(k.t-t)<.5/P.fps);if(i>=0)a[i].v=v;else{a.push({t,v,e:curEase});a.sort((x,y)=>x.t-y.t)}};
 function toggleKF(c,key){const lt=T-c.start,a=c.kf[key]??=[],i=a.findIndex(k=>Math.abs(k.t-lt)<.5/P.fps);snap('kf');if(i>=0){a.splice(i,1);if(!a.length)delete c.kf[key]}else putKF(c,key,lt,get(c,key,lt));dirty()}
+async function precacheRetimedClip(clip,onProgress){
+ const media=P.media[clip.media];
+ if(!media||media.type!=='video'||!blobs[media.id])throw new Error('The selected clip has no available source video.');
+ const cache=window.CutroomRetimeCache;
+ if(!cache?.precacheVideo)throw new Error('Retime frame cache is unavailable.');
+ if(!cache.stats().enabled)throw new Error('Enable Retime frame cache in Performance settings first.');
+ const sourceIn=Number.isFinite(clip.timeMapSourceIn)?clip.timeMapSourceIn:clip.in;
+ const sourceSpan=Math.max(0,Number.isFinite(clip.timeMapSourceSpan)?clip.timeMapSourceSpan:clip.dur*clip.speed);
+ const start=clamp(sourceIn,0,media.dur||sourceIn+sourceSpan);
+ const end=clamp(sourceIn+sourceSpan,start,media.dur||sourceIn+sourceSpan);
+ return cache.precacheVideo({clipId:clip.id,src:url(media.id),start,end,fps:media.fps||P.fps||30,width:cv.width,height:cv.height,fit:P.fit,onProgress});
+}
 function drawProps(){const R=$('#right');window._cutroomRetimeGraph?.destroy?.();window._cutroomRetimeGraph=null;R.innerHTML='';rowsReg=[];const c=cur();if(!c){R.innerHTML='<p class="hint">Select a clip on the timeline to edit its transform, audio, transition and effects.</p>';return}
-const m=P.media[c.media],au=isA(c);R.append(el('div','chead',`<b>${esc(c.text?c.text.s.split('\n')[0]:m?.name||'Clip')}</b><small>${c.text?'Text':au?'Audio':m?.type=='image'?'Image':'Video'} · ${c.fx.length} effect${c.fx.length==1?'':'s'}</small>`));const cl=sec(R,'Clip');if(!c.text){const sp=inp(cl,'Speed',c,'speed');sp.min=.1;sp.max=8;sp.step=.05;sp.onchange=()=>{snap('spd');const n=clamp(+sp.value||1,.1,8);c.dur=c.dur*c.speed/n;c.speed=n;if(c.timeMap){c.timeMapSourceSpan=c.dur*c.speed;if(c.timeMapSettings?.type==='smoothReverse')c.timeMap=buildSmoothReverseMap(c.timeMapSettings)}drawTL();fcClear();dirty();sync(T,false)};if(m?.type!=='image'&&!au){const tm=sec(R,'Retime');tm.append(el('p','hint',c.timeMap?`Custom source-time curve · ${c.timeMap.length} points. Retimed picture frames are decoded from the source-time curve. The soundtrack stays on its own forward-only timeline and is not reversed or boomeranged.`:c.rev?'Reverse playback is enabled.':'Choose a retime curve or reverse the selected clip.'));const actions=el('div','retime-actions');const addAction=(label,mode)=>{const b=el('button',null,label);b.onclick=()=>setRetime(c,mode);actions.append(b)};addAction('Normal','normal');addAction('Reverse','reverse');addAction('Reverse Ramp','smoothReverse');addAction('Boomerang 0→end→0','boomerang');addAction('Smooth Boomerang','smoothBoomerang');addAction('Velocity Ramp','velocity');addAction('Slow Motion','slow');tm.append(actions);if(c.timeMapSettings?.type==='smoothReverse'){const cfg=c.timeMapSettings,makeRange=(label,key,min,max,step,scale=1)=>{const row=el('div','row',`<label>${label}</label>`),range=el('input'),value=el('input');range.type='range';value.type='number';range.min=min*scale;range.max=max*scale;range.step=step*scale;value.min=min;value.max=max;value.step=step;range.value=(cfg[key]*scale).toFixed(2);value.value=cfg[key].toFixed(2);range.oninput=value.onchange=()=>{const v=clamp(+((range===document.activeElement?range:value).value)/scale,min,max);cfg[key]=v;range.value=(v*scale).toFixed(2);value.value=v.toFixed(2);c.timeMap=buildSmoothReverseMap(cfg);c.timeMapSourceIn=c.in;c.timeMapSourceSpan=c.dur*c.speed;fcClear();dirty();sync(T,false)};row.append(range,value);tm.append(row)};makeRange('Reverse duration %','reverseDuration',.08,.38,.01,100);makeRange('Forward speed ×','forwardSpeed',.35,2.5,.05);makeRange('Reverse speed ×','reverseSpeed',.2,1.5,.05);tm.append(el('p','hint','The middle section samples decoded source frames in descending order. Blur and shake remain independently adjustable in the Effects stack.'))}if(c.timeMap){const cr=el('div','row','<label>Curve</label>'),sl=el('select');[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In-Out'],['bezier','Smooth (bezier)']].forEach(([v,n])=>sl.add(new Option(n,v)));sl.value=c.timeMap[0].e||'linear';sl.onchange=()=>{snap('curve');c.timeMapSettings=null;c.timeMap=normalizeTimeMap(c.timeMap.map(x=>({...x,e:sl.value})));drawProps();drawTL();dirty();sync(T,false)};cr.append(sl);tm.append(cr)}if(c.timeMap){const map=normalizeTimeMap(c.timeMap)||[],u=timeMapPosition(c,T-c.start),valNow=mapValue(map,u)*100,row=el('div','row',`<label>Source %</label>`),n=el('input');n.type='number';n.min=0;n.max=100;n.step=1;n.value=valNow.toFixed(1);const put=el('button',null,'Set point');put.onclick=()=>{const v=clamp(+n.value/100,0,1),t=timeMapPosition(c,T-c.start);snap('retimePoint');c.timeMapSettings=null;const a=normalizeTimeMap(c.timeMap)||[{t:0,v:0,e:'inout'},{t:1,v:1,e:'inout'}],i=a.findIndex(x=>Math.abs(x.t-t)<.015);if(i>=0)a[i].v=v;else a.push({t,v,e:'inout'});c.timeMap=normalizeTimeMap(a);if(c.timeMap){c.timeMapSourceIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in;c.timeMapSourceSpan=Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:c.dur*c.speed}drawProps();dirty();sync(T,false)};row.append(n,put);tm.append(row);const graphHost=el('div','retime-graph-host');tm.append(graphHost);if(window.CutroomRetimeGraph)window._cutroomRetimeGraph=window.CutroomRetimeGraph.mount(graphHost,{points:c.timeMap,playhead:timeMapPosition(c,T-c.start),onChange:(points,finished)=>{c.timeMap=points;c.timeMapSettings=null;c.rev=false;if(!Number.isFinite(c.timeMapSourceIn))c.timeMapSourceIn=c.in;if(!Number.isFinite(c.timeMapSourceSpan))c.timeMapSourceSpan=c.dur*c.speed;c.timeMapTimelineStart=0;c.timeMapTimelineSpan=1;if(finished){fcClear();drawTL();dirty();sync(T,false)}}});const clear=el('button',null,'Clear time remap');clear.onclick=()=>setRetime(c,'normal');tm.append(clear)}const rv=inp(cl,'Reverse',c,'rev','checkbox');rv.onchange=()=>{snap('rev');c.rev=rv.checked;c.timeMap=null;drawTL();dirty();sync(T,false)}}} const ez=inp(cl,'New key easing',{e:curEase},'e','text',[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In Out'],['bezier','Bezier (overshoot)']]);ez.value=curEase;ez.onchange=()=>{curEase=ez.value;const lt=T-c.start;for(const k in c.kf)c.kf[k].forEach(x=>{if(Math.abs(x.t-lt)<.5/P.fps)x.e=curEase})};
+const m=P.media[c.media],au=isA(c);R.append(el('div','chead',`<b>${esc(c.text?c.text.s.split('\n')[0]:m?.name||'Clip')}</b><small>${c.text?'Text':au?'Audio':m?.type=='image'?'Image':'Video'} · ${c.fx.length} effect${c.fx.length==1?'':'s'}</small>`));const cl=sec(R,'Clip');if(!c.text){const sp=inp(cl,'Speed',c,'speed');sp.min=.1;sp.max=8;sp.step=.05;sp.onchange=()=>{snap('spd');const n=clamp(+sp.value||1,.1,8);c.dur=c.dur*c.speed/n;c.speed=n;if(c.timeMap){c.timeMapSourceSpan=c.dur*c.speed;if(c.timeMapSettings?.type==='smoothReverse')c.timeMap=buildSmoothReverseMap(c.timeMapSettings)}drawTL();fcClear();dirty();sync(T,false)};if(m?.type!=='image'&&!au){const tm=sec(R,'Retime');tm.append(el('p','hint',c.timeMap?`Custom source-time curve · ${c.timeMap.length} points. Retimed picture frames are decoded from the source-time curve. The soundtrack stays on its own forward-only timeline and is not reversed or boomeranged.`:c.rev?'Reverse playback is enabled.':'Choose a retime curve or reverse the selected clip.'));const actions=el('div','retime-actions');const addAction=(label,mode)=>{const b=el('button',null,label);b.onclick=()=>setRetime(c,mode);actions.append(b)};addAction('Normal','normal');addAction('Reverse','reverse');addAction('Reverse Ramp','smoothReverse');addAction('Boomerang 0→end→0','boomerang');addAction('Smooth Boomerang','smoothBoomerang');addAction('Velocity Ramp','velocity');addAction('Slow Motion','slow');tm.append(actions);
+if(c.timeMap||c.rev||hasPT(c)){
+ const warm=el('button',null,'Pre-cache reverse / boomerang frames');warm.style.width='100%';warm.style.marginTop='8px';
+ warm.onclick=async()=>{
+  if(warm.disabled)return;const wasPlaying=playing;playing=false;sync(T,false);warm.disabled=true;
+  try{
+   warm.textContent='Pre-caching source frames…';
+   const result=await precacheRetimedClip(c,p=>{warm.textContent='Pre-caching… '+Math.round(p.done/Math.max(1,p.total)*100)+'% ('+p.cached+' ready)'});
+   fcClear();dirty();warm.textContent='Pre-cache complete · '+result.cached+' frames';
+   toast('Retime cache ready: '+result.cached+' frames'+(result.skipped?' · '+result.skipped+' could not be cached':''));
+  }catch(err){warm.textContent='Pre-cache failed';toast('Retime pre-cache failed: '+err.message,1)}
+  finally{warm.disabled=false;if(wasPlaying)toast('Press Play to resume the preview.')}
+ };
+ tm.append(warm)
+}
+if(c.timeMapSettings?.type==='smoothReverse'){const cfg=c.timeMapSettings,makeRange=(label,key,min,max,step,scale=1)=>{const row=el('div','row',`<label>${label}</label>`),range=el('input'),value=el('input');range.type='range';value.type='number';range.min=min*scale;range.max=max*scale;range.step=step*scale;value.min=min;value.max=max;value.step=step;range.value=(cfg[key]*scale).toFixed(2);value.value=cfg[key].toFixed(2);range.oninput=value.onchange=()=>{const v=clamp(+((range===document.activeElement?range:value).value)/scale,min,max);cfg[key]=v;range.value=(v*scale).toFixed(2);value.value=v.toFixed(2);c.timeMap=buildSmoothReverseMap(cfg);c.timeMapSourceIn=c.in;c.timeMapSourceSpan=c.dur*c.speed;fcClear();dirty();sync(T,false)};row.append(range,value);tm.append(row)};makeRange('Reverse duration %','reverseDuration',.08,.38,.01,100);makeRange('Forward speed ×','forwardSpeed',.35,2.5,.05);makeRange('Reverse speed ×','reverseSpeed',.2,1.5,.05);tm.append(el('p','hint','The middle section samples decoded source frames in descending order. Blur and shake remain independently adjustable in the Effects stack.'))}if(c.timeMap){const cr=el('div','row','<label>Curve</label>'),sl=el('select');[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In-Out'],['bezier','Smooth (bezier)']].forEach(([v,n])=>sl.add(new Option(n,v)));sl.value=c.timeMap[0].e||'linear';sl.onchange=()=>{snap('curve');c.timeMapSettings=null;c.timeMap=normalizeTimeMap(c.timeMap.map(x=>({...x,e:sl.value})));drawProps();drawTL();dirty();sync(T,false)};cr.append(sl);tm.append(cr)}if(c.timeMap){const map=normalizeTimeMap(c.timeMap)||[],u=timeMapPosition(c,T-c.start),valNow=mapValue(map,u)*100,row=el('div','row',`<label>Source %</label>`),n=el('input');n.type='number';n.min=0;n.max=100;n.step=1;n.value=valNow.toFixed(1);const put=el('button',null,'Set point');put.onclick=()=>{const v=clamp(+n.value/100,0,1),t=timeMapPosition(c,T-c.start);snap('retimePoint');c.timeMapSettings=null;const a=normalizeTimeMap(c.timeMap)||[{t:0,v:0,e:'inout'},{t:1,v:1,e:'inout'}],i=a.findIndex(x=>Math.abs(x.t-t)<.015);if(i>=0)a[i].v=v;else a.push({t,v,e:'inout'});c.timeMap=normalizeTimeMap(a);if(c.timeMap){c.timeMapSourceIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in;c.timeMapSourceSpan=Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:c.dur*c.speed}drawProps();dirty();sync(T,false)};row.append(n,put);tm.append(row);const graphHost=el('div','retime-graph-host');tm.append(graphHost);if(window.CutroomRetimeGraph)window._cutroomRetimeGraph=window.CutroomRetimeGraph.mount(graphHost,{points:c.timeMap,playhead:timeMapPosition(c,T-c.start),onChange:(points,finished)=>{c.timeMap=points;c.timeMapSettings=null;c.rev=false;if(!Number.isFinite(c.timeMapSourceIn))c.timeMapSourceIn=c.in;if(!Number.isFinite(c.timeMapSourceSpan))c.timeMapSourceSpan=c.dur*c.speed;c.timeMapTimelineStart=0;c.timeMapTimelineSpan=1;if(finished){fcClear();drawTL();dirty();sync(T,false)}}});const clear=el('button',null,'Clear time remap');clear.onclick=()=>setRetime(c,'normal');tm.append(clear)}const rv=inp(cl,'Reverse',c,'rev','checkbox');rv.onchange=()=>{snap('rev');c.rev=rv.checked;c.timeMap=null;drawTL();dirty();sync(T,false)}}} const ez=inp(cl,'New key easing',{e:curEase},'e','text',[['linear','Linear'],['in','Ease In'],['out','Ease Out'],['inout','Ease In Out'],['bezier','Bezier (overshoot)']]);ez.value=curEase;ez.onchange=()=>{curEase=ez.value;const lt=T-c.start;for(const k in c.kf)c.kf[k].forEach(x=>{if(Math.abs(x.t-lt)<.5/P.fps)x.e=curEase})};
 if(!au){const t=sec(R,'Transform');[['tr.x','Position X',[0,-2000,2000]],['tr.y','Position Y',[0,-2000,2000]],['tr.s','Scale %',[100,0,400]],['tr.r','Rotation',[0,-720,720]],['tr.o','Opacity',[100,0,100]]].forEach(([k,l,s])=>prow(c,k,l,s,t))}
 if(!c.text&&m?.type!='image'){const a=sec(R,'Audio');prow(c,'vol','Volume %',[100,0,200],a);inp(a,'Fade in s',c,'fi');inp(a,'Fade out s',c,'fo')}
 if(!au){const t=sec(R,'Transition in'),s=inp(t,'Type',{t:c.tin?.t||''},'t','text',[['','None'],...Object.entries(TR).map(([k,v])=>[k,v[0]])]);s.value=c.tin?.t||'';const d=inp(t,'Duration s',{d:c.tin?.d||.6},'d');s.onchange=d.onchange=()=>{snap('tin');c.tin=s.value?{t:s.value,d:+d.value||.6}:null;dirty()};
@@ -870,11 +961,64 @@ const CANVAS_FORMATS=[['tiktok','TikTok video 9:16',1080,1920,'1080 × 1920 · v
 function updateFormatLabel(){let a=P.w,b=P.h;while(b){const t=a%b;a=b;b=t}const f=CANVAS_FORMATS.find(x=>x[2]===P.w&&x[3]===P.h),ratio=`${P.w/a}:${P.h/a}`;$('#fmtlabel').textContent=`${P.w}×${P.h} · ${f?ratio:ratio} · ${P.fit==='cover'?'crop fill':'fit'}`}
 function applyCanvasSize(w,h,format,fit=P.fit||'cover'){P.w=clamp(Math.round(+w)||1920,16,7680);P.h=clamp(Math.round(+h)||1080,16,4320);P.format=format||'custom';P.fit=fit==='contain'?'contain':'cover';resizeCv();drawTL();drawProps();updateFormatLabel();toast(`Canvas set to exact ${P.w}×${P.h} · ${P.fit==='cover'?'crop to fill':'fit whole frame'}`)}
 function formatDlg(){const body=el('div');body.innerHTML='<h3>Exact canvas formats</h3><p class="hint">Choose the actual pixel dimensions. Export defaults to these exact dimensions. Crop to fill cuts off the outside of the source frame; Fit keeps the whole source and may show bars.</p>';const fitRow=el('div','row'),fitLabel=el('label',null,'Media fit'),fit=el('select');fit.innerHTML='<option value="cover">Crop to fill (cover)</option><option value="contain">Fit whole frame (letterbox)</option>';fit.value='cover';fitRow.append(fitLabel,fit);body.append(fitRow);const grid=el('div','format-grid');CANVAS_FORMATS.forEach(([id,name,w,h,desc])=>{const b=el('button','format-tile',`<b>${esc(name)}</b><small>${w} × ${h} · ${esc(desc)}</small>`);b.onclick=()=>{closeMod();applyCanvasSize(w,h,id,fit.value)};grid.append(b)});body.append(grid);const custom=el('div');custom.style.marginTop='12px';custom.innerHTML='<h4>Custom dimensions (pixels)</h4>';const row=el('div','row'),w=el('input'),h=el('input');w.type=h.type='number';w.min=h.min='16';w.max=h.max='7680';w.value=P.w;h.value=P.h;w.placeholder='Width px';h.placeholder='Height px';const b=el('button','pri','Apply custom');b.onclick=()=>{closeMod();applyCanvasSize(w.value,h.value,'custom',fit.value)};row.append(w,h,b);custom.append(row);body.append(custom);modal(body,[['Close']])}
+function applyPerformanceConfig(next){
+ const cfg=next||window.CutroomPerformanceConfig?.get?.()||{};
+ window.CutroomPerformance?.update?.(cfg);
+ qualityMode=cfg.adaptiveQuality===false?'manual':'adaptive';
+ Q=window.CutroomPerformance?.getScale?.()||cfg.previewScale||.58;
+ FC.max=Math.max(16,Number(cfg.previewCacheMB)||72)*1048576;
+ GL.poolBudget=Math.max(16,Number(cfg.gpuCacheMB)||96)*1048576;
+ window.CutroomRetimeCache?.configure?.({budgetMB:cfg.retimeCacheMB||160,enabled:cfg.retimeCacheEnabled!==false});
+ try{glDisposePool();GL.W=0;GL.H=0}catch{}
+ resizeCv();dirty();glUI();return cfg
+}
+function performanceDlg(){
+ const config=window.CutroomPerformanceConfig,base=config?.get?.()||{},body=el('div');
+ body.append(el('h3',null,'Performance & memory'));
+ body.append(el('p','hint','Preview settings only affect editing playback. Export always renders the full effect stack at the chosen output size.'));
+ const field=(name,node,hint)=>{const row=el('div','row');row.style.alignItems='center';const label=el('label',null,name);label.style.minWidth='160px';row.append(label,node);body.append(row);if(hint)body.append(el('p','hint',hint));return node};
+ const profile=el('select');
+ [['auto','Auto · detect this device'],['performance','Maximum performance'],['balanced','Balanced'],['quality','High quality'],['custom','Custom settings']].forEach(([v,n])=>profile.add(new Option(n,v)));
+ profile.value=base.profile||'auto';field('Performance profile',profile);
+ const previewFps=el('select');[15,20,24,30,45,60].forEach(v=>previewFps.add(new Option(v+' fps',String(v))));previewFps.value=String(base.previewFps||30);field('Preview FPS',previewFps);
+ const previewScale=el('input');previewScale.type='number';previewScale.min='.25';previewScale.max='1';previewScale.step='.05';previewScale.value=base.previewScale||.58;field('Preview resolution scale',previewScale,'0.50 means the editor renders half the project width and height. Export resolution is unchanged.');
+ const adaptive=el('input');adaptive.type='checkbox';adaptive.checked=base.adaptiveQuality!==false;field('Adaptive preview resolution',adaptive,'Automatically lowers preview scale when rendering is too slow, then slowly recovers.');
+ const effectMode=el('select');[['smart','Smart · reduce heavy preview effects'],['all','All effects in preview']].forEach(([v,n])=>effectMode.add(new Option(n,v)));effectMode.value=base.effectPreviewMode||'smart';field('Effect preview mode',effectMode,'Smart mode may omit selected heavy effects only while playing large stacks. Paused preview and exports render all effects.');
+ const previewCache=el('input');previewCache.type='number';previewCache.min=16;previewCache.max=512;previewCache.step=16;previewCache.value=base.previewCacheMB||72;field('Preview cache (MB)',previewCache);
+ const gpuCache=el('input');gpuCache.type='number';gpuCache.min=16;gpuCache.max=512;gpuCache.step=16;gpuCache.value=base.gpuCacheMB||96;field('GPU cache (MB)',gpuCache);
+ const retimeCache=el('input');retimeCache.type='number';retimeCache.min=16;retimeCache.max=512;retimeCache.step=16;retimeCache.value=base.retimeCacheMB||160;field('Reverse / boomerang cache (MB)',retimeCache);
+ const retimeEnabled=el('input');retimeEnabled.type='checkbox';retimeEnabled.checked=base.retimeCacheEnabled!==false;field('Enable retime frame cache',retimeEnabled);
+ const exportFps=el('select');[24,30,50,60,90,120].forEach(v=>exportFps.add(new Option(v+' fps maximum',String(v))));exportFps.value=String(base.exportMaxFps||60);field('Maximum export FPS',exportFps);
+ const exportPixels=el('input');exportPixels.type='number';exportPixels.min=2.1;exportPixels.max=33.5;exportPixels.step=.5;exportPixels.value=((base.exportMaxPixels||16777216)/1e6).toFixed(1);field('Export memory budget (MP)',exportPixels,'Limits output frame allocation to avoid browser out-of-memory crashes.');
+ const bitrate=el('input');bitrate.type='number';bitrate.min=12;bitrate.max=160;bitrate.step=4;bitrate.value=base.exportBitrateCapMbps||80;field('Export bitrate cap (Mbps)',bitrate);
+ const yieldFrames=el('input');yieldFrames.type='number';yieldFrames.min=1;yieldFrames.max=12;yieldFrames.step=1;yieldFrames.value=base.exportYieldEveryFrames||2;field('Yield every N rendered frames',yieldFrames,'Controls extra UI yields when rendering takes longer than the selected output frame interval.');
+ const progressEvery=el('input');progressEvery.type='number';progressEvery.min=1;progressEvery.max=20;progressEvery.step=1;progressEvery.value=base.exportProgressEvery||3;field('Progress UI update interval',progressEvery);
+ const values=()=>({previewFps:+previewFps.value,previewScale:+previewScale.value,adaptiveQuality:adaptive.checked,effectPreviewMode:effectMode.value,previewCacheMB:+previewCache.value,gpuCacheMB:+gpuCache.value,retimeCacheMB:+retimeCache.value,retimeCacheEnabled:retimeEnabled.checked,exportMaxFps:+exportFps.value,exportMaxPixels:Math.round((+exportPixels.value||16.8)*1e6),exportBitrateCapMbps:+bitrate.value,exportYieldEveryFrames:+yieldFrames.value,exportProgressEvery:+progressEvery.value});
+ const fields=[previewFps,previewScale,adaptive,effectMode,previewCache,gpuCache,retimeCache,retimeEnabled,exportFps,exportPixels,bitrate,yieldFrames,progressEvery];
+ const updatePreset=()=>{
+  const val=profile.value,preset=config.presetFor?.(val)||config.PRESETS[val];
+  if(!preset)return;
+  previewFps.value=preset.previewFps;previewScale.value=preset.previewScale;adaptive.checked=preset.adaptiveQuality;
+  effectMode.value=preset.effectPreviewMode||'smart';previewCache.value=preset.previewCacheMB;gpuCache.value=preset.gpuCacheMB;
+  retimeCache.value=preset.retimeCacheMB;retimeEnabled.checked=preset.retimeCacheEnabled;
+  exportFps.value=preset.exportMaxFps;exportPixels.value=(preset.exportMaxPixels/1e6).toFixed(1);
+  bitrate.value=preset.exportBitrateCapMbps;yieldFrames.value=preset.exportYieldEveryFrames;progressEvery.value=preset.exportProgressEvery;
+ };
+ profile.onchange=()=>{if(profile.value!=='custom')updatePreset()};
+ fields.forEach(node=>node.addEventListener('change',()=>{profile.value='custom'}));
+ const apply=()=>{
+  let next;
+  if(['auto','performance','balanced','quality'].includes(profile.value))next=config.setProfile(profile.value);
+  else next=config.save({profile:'custom',...values()});
+  applyPerformanceConfig(next);closeMod();toast('Performance profile saved.')
+ };
+ modal(body,[['Reset',()=>{const next=config.reset();applyPerformanceConfig(next);closeMod();toast('Performance profile reset.')}],['Cancel'],['Apply',apply]]);
+}
 function settings(){const b=el('div',null,'<h3>Project settings</h3>');const o={name:P.name,w:P.w,h:P.h,fps:P.fps};inp(b,'Name',o,'name','text');inp(b,'Width',o,'w');inp(b,'Height',o,'h');inp(b,'Frame rate',o,'fps','text',[24,25,30,50,60,90,120].map(x=>[x,x+' fps']));modal(b,[['Cancel'],['Apply',()=>{P.name=o.name;$('#pname').value=P.name;P.fps=clamp(+o.fps||30,1,120);applyCanvasSize(o.w,o.h,'custom')} ]])}
 /* ---------- export ---------- */
 function exportDlg(){if(!window.MediaRecorder)return toast('This browser has no MediaRecorder, so video export is unavailable.',1);if(!P.clips.length)return toast('Add clips to the timeline first.',1);const mimes={webm:['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mp4:['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4']},ok=Object.fromEntries(Object.entries(mimes).map(([k,v])=>[k,v.find(x=>MediaRecorder.isTypeSupported(x))]));
-const fourKScale=3840/Math.max(P.w,P.h),fourKW=Math.round(P.w*fourKScale/2)*2,fourKH=Math.round(P.h*fourKScale/2)*2,fpsOptions=[24,25,30,50,60,90,120].map(x=>[x,String(x)+' fps']),o={fmt:ok.mp4?'mp4':'webm',scale:'1',fps:P.fps,vb:12,ab:192},b=el('div',null,'<h3>Export video</h3>');inp(b,'Format',o,'fmt','text',[...(ok.mp4?[['mp4','MP4 (H.264)']]:[]),...(ok.webm?[['webm','WebM (VP9)']]:[])]);inp(b,'Output size',o,'scale','text',[['1',`Exact canvas · ${P.w} × ${P.h}`],['4k',`4K UHD · ${fourKW} × ${fourKH}`],['2','200% of canvas'],['.75','75% of canvas'],['.5','50% of canvas']]);inp(b,'Frame rate',o,'fps','text',fpsOptions);inp(b,'Video Mbps',o,'vb');inp(b,'Audio kbps',o,'ab');
-b.append(el('p','hint',`Export always starts at 00:00 and includes the soundtrack from the beginning. 4K UHD option: ${fourKW} × ${fourKH}. You can choose up to 120 fps; actual frame delivery still depends on browser and effect-rendering performance.`));
+const fourKScale=3840/Math.max(P.w,P.h),fourKW=Math.round(P.w*fourKScale/2)*2,fourKH=Math.round(P.h*fourKScale/2)*2,maxFps=window.CutroomPerformanceConfig?.get?.().exportMaxFps||60,fpsOptions=[24,25,30,50,60,90,120].filter(x=>x<=maxFps).map(x=>[x,String(x)+' fps']),o={fmt:ok.mp4?'mp4':'webm',scale:'1',fps:Math.min(P.fps,maxFps),vb:12,ab:192},b=el('div',null,'<h3>Export video</h3>');inp(b,'Format',o,'fmt','text',[...(ok.mp4?[['mp4','MP4 (H.264)']]:[]),...(ok.webm?[['webm','WebM (VP9)']]:[])]);inp(b,'Output size',o,'scale','text',[['1',`Exact canvas · ${P.w} × ${P.h}`],['4k',`4K UHD · ${fourKW} × ${fourKH}`],['2','200% of canvas'],['.75','75% of canvas'],['.5','50% of canvas']]);inp(b,'Frame rate',o,'fps','text',fpsOptions);inp(b,'Video Mbps',o,'vb');inp(b,'Audio kbps',o,'ab');
+b.append(el('p','hint',`Export always starts at 00:00 and includes the soundtrack from the beginning. 4K UHD option: ${fourKW} × ${fourKH}. You can choose up to ${maxFps} fps for the active performance profile; actual frame delivery still depends on browser and effect-rendering performance.`));
 modal(b,[['Cancel'],['Start export',()=>runExport(o,ok[o.fmt])]])}
 function exportSourceTime(c,t,m){
  const lt=clamp(t-c.start,0,c.dur),fps=Math.max(1,m.fps||P.fps||30),mp=mappedProgress(c,lt),span=Math.max(0,c.dur*c.speed),mapIn=Number.isFinite(c.timeMapSourceIn)?c.timeMapSourceIn:c.in,mapSpan=Math.max(0,Number.isFinite(c.timeMapSourceSpan)?c.timeMapSourceSpan:span),frame=1/fps;
@@ -921,23 +1065,24 @@ function touchExportFrame(ctx,w,h,index){
  ctx.save();ctx.fillStyle=(index&1)?'rgb(8,8,8)':'rgb(9,9,9)';ctx.fillRect(Math.max(0,w-1),Math.max(0,h-1),1,1);ctx.restore();
 }
 async function prepareExportFrame(t,force=false){
- const jobs=[];
+ const jobs=[],size=exporting?.output||cv,W=size.width,H=size.height;
  for(const c of P.clips){
   const tr=trk(c.track),m=P.media[c.media];
   if(c.text||!m||m.type!=='video'||t<c.start||t>=c.start+c.dur||!tr||tr.k==='a'||!live(tr))continue;
   const e=elFor(c),src=exportSourceTime(c,t,m);if(e)e._cutroomFps=m.fps||P.fps||30;
   const remapped=!!(c.timeMap||c.rev||hasPT(c));
-  // Regular clips use native playback between samples. Retimed clips use
-  // deterministic seeks so reverse and velocity remapping render the right frame.
+  if(remapped&&e){e._cutroomDesiredTime=src;const sourceFps=Math.max(1,m.fps||P.fps||30),sourceFrame=Math.round(src*sourceFps);if(window.CutroomRetimeCache?.has?.(c.id,sourceFrame,W,H))continue}
   if(!force&&!remapped&&e&&e.readyState>=2&&!e.seeking&&!e._cutroomSeeking&&Math.abs((Number(e.currentTime)||0)-src)<.16)continue;
-  jobs.push(waitVideoFrameForExport(e,src,m.name));
+  jobs.push(waitVideoFrameForExport(e,src,m.name))
  }
- await Promise.all(jobs);
+ await Promise.all(jobs)
 }
 async function runExport(o,mimeHint){
  if(exporting)return;ensureAC();try{await AC.resume()}catch{}
- const fps=clamp(Math.round(+o.fps||P.fps||30),1,120),scale=o.scale==='4k'?clamp(3840/Math.max(P.w,P.h),.25,6):clamp(+o.scale||1,.25,6),even=x=>Math.max(2,Math.round(x/2)*2),Wd=even(P.w*scale),H=even(P.h*scale),start=0,end=endT();
+ const perfCfg=window.CutroomPerformanceConfig?.get?.()||{},fps=clamp(Math.round(+o.fps||P.fps||30),1,Math.min(120,perfCfg.exportMaxFps||60)),scale=o.scale==='4k'?clamp(3840/Math.max(P.w,P.h),.25,6):clamp(+o.scale||1,.25,6),even=x=>Math.max(2,Math.round(x/2)*2),Wd=even(P.w*scale),H=even(P.h*scale),start=0,end=endT();
  if(end-start<.1)return toast('Nothing to export in that range.',1);
+ const devicePixelLimit=(navigator.deviceMemory||4)<=4?12582912:25165824,maxExportPixels=Math.min(devicePixelLimit,perfCfg.exportMaxPixels||16777216);
+ if(Wd*H>maxExportPixels)return toast('This export needs '+(Wd*H/1e6).toFixed(1)+' MP, above this profile’s '+(maxExportPixels/1e6).toFixed(1)+' MP memory budget. Choose a smaller output size or a higher performance tier.',1);
  FC.map.clear();FC.spare.length=0;FC.bytes=0;try{glDisposePool();GL.W=0;GL.H=0}catch{}const frameCount=Math.max(1,Math.ceil((end-start)*fps)),output=el('canvas');output.width=Wd;output.height=H;const outCtx=output.getContext('2d',{alpha:false,desynchronized:true});if(!outCtx)return toast('Could not create the export canvas.',1);
  const oldT=T,wasPlaying=playing;playing=false;$('#bP').textContent='▶ Play';let stream=null,vt=null,rec=null,recStopped=null,chunks=[],failed=null,completed=0,skippedEffects=[];
  const mimeCandidates=[mimeHint,'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4'].filter(Boolean),chosen=mimeCandidates.find(x=>MediaRecorder.isTypeSupported(x))||'',ext=chosen.startsWith('video/mp4')?'mp4':'webm';
@@ -953,17 +1098,17 @@ async function runExport(o,mimeHint){
   // optional requestFrame() API is unavailable.
   stream=output.captureStream(0);vt=stream.getVideoTracks()[0];const manualCapture=typeof vt.requestFrame==='function';if(!manualCapture){stream.getTracks().forEach(x=>x.stop());stream=output.captureStream(fps);vt=stream.getVideoTracks()[0];}
   if(MD?.stream)for(const a of MD.stream.getAudioTracks())if(a.readyState==='live')stream.addTrack(a);
-  const recommendedMbps=12*(Wd*H/(1920*1080))*(fps/30),videoMbps=clamp(Math.max(+o.vb||12,recommendedMbps),4,120),opt={videoBitsPerSecond:Math.round(videoMbps*1e6),audioBitsPerSecond:Math.max(32,Math.round((+o.ab||192)*1000))};if(chosen)opt.mimeType=chosen;
+  const bitrateCap=Math.max(12,Math.min(160,perfCfg.exportBitrateCapMbps||80)),recommendedMbps=12*(Wd*H/(1920*1080))*(fps/30),videoMbps=clamp(Math.max(+o.vb||12,recommendedMbps),4,bitrateCap),opt={videoBitsPerSecond:Math.round(videoMbps*1e6),audioBitsPerSecond:Math.max(32,Math.round((+o.ab||192)*1000))};if(chosen)opt.mimeType=chosen;
   rec=new MediaRecorder(stream,opt);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(250);if(manualCapture)vt.requestFrame();await audioPrime;
-  const frameMs=1000/fps;completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
+  const frameMs=1000/fps,progressEvery=Math.max(1,perfCfg.exportProgressEvery||3),yieldEvery=Math.max(1,perfCfg.exportYieldEveryFrames||2);completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
   for(let i=1;i<frameCount;i++){
    if(exporting.cancel)break;if(failed)throw failed;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
-   render(outCtx,Wd,H,t);if(failed)throw failed;touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
+   render(outCtx,Wd,H,t);if(failed)throw failed;touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;if(i%progressEvery===0||i===frameCount-1){$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`}
    sync(t,true,true);
    // Decode/render time already consumes part of this frame interval. Wait
    // only for the remainder; adding a full frame delay after every seek makes
    // the exported video progressively longer than the project timeline.
-   await delay(Math.max(0,frameMs-(performance.now()-frameStarted)));
+   const waitMs=Math.max(0,frameMs-(performance.now()-frameStarted));if(waitMs>0)await delay(waitMs);else if(i%yieldEvery===0)await delay(0);
   }
   if(exporting.cancel){toast('Export cancelled. No partial video was saved.');return}if(completed!==frameCount)throw new Error('Export stopped before all frames were rendered.');
   // Hold the final rendered frame for one regular frame interval. Do not
@@ -984,9 +1129,9 @@ addEventListener('dragover',e=>e.preventDefault());addEventListener('drop',e=>{e
 $('#bNew').onclick=async()=>{await saveProj();await idb('projects','put',JSON.stringify(snapshot()),'backup '+new Date().toLocaleString()).catch(()=>{});loadProject(newProj())};$('#bSave').onclick=()=>saveProj($('#pname').value);$('#pname').onchange=()=>P.name=$('#pname').value||'Untitled';
 $('#sOpen').onchange=async e=>{if(!e.target.value)return;const s=await idb('projects','get',e.target.value);await loadProject(JSON.parse(s));e.target.value=''};
 $('#bPE').onclick=()=>save(P.name.replace(/\W+/g,'_')+'.cutroom.json',new Blob([JSON.stringify({format:'cutroom-project',version:1,_doc:'project = {name,w,h,fps,tracks[{id,n,k:v|a|t,mute,solo,lock,hide}],clips[{id,track,media,start,in,dur,speed,rev,vol,fi,fo,tr{x,y,s,r,o},fx[{id,t,p,off}],kf{key:[{t,v,e}]},tin,text}],media{id:{name,type,w,h,dur,fps}}}. Media files are not embedded; re-import files with the same names to relink.',project:snapshot()},null,1)],{type:'application/json'}));
-$('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
+$('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bPerf').onclick=performanceDlg;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
 $('#bP').onclick=togglePlay;$('#bH').onclick=()=>seek(0);$('#bE').onclick=()=>seek(endT());$('#bB').onclick=()=>seek(T-1/P.fps);$('#bF').onclick=()=>seek(T+1/P.fps);
-$('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode='manual';Q=Math.max(.125,Math.min(1,+e.target.value||1));if(!exporting)resizeCv();$('#fps').title=`Preview resolution: ${Math.round(Q*100)}%`};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
+$('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode='manual';Q=Math.max(.125,Math.min(1,+e.target.value||1));window.CutroomPerformance?.update?.({...window.CutroomPerformance?.getSettings?.(),previewScale:Q,adaptiveQuality:false});if(!exporting)resizeCv();$('#fps').title=`Preview resolution: ${Math.round(Q*100)}%`};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
 addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;const k=e.key.toLowerCase(),ctl=e.ctrlKey||e.metaKey;if(k==' '){e.preventDefault();togglePlay()}else if(k=='s'&&!ctl)split();else if(k=='delete'||k=='backspace')del();else if(k=='arrowleft')seek(T-(e.shiftKey?1:1/P.fps));else if(k=='arrowright')seek(T+(e.shiftKey?1:1/P.fps));else if(k=='home')seek(0);else if(k=='end')seek(endT());else if(ctl&&k=='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(ctl&&k=='y'){e.preventDefault();redo()}else if(ctl&&k=='c')clipb=cur()&&JSON.parse(JSON.stringify(cur()));else if(ctl&&k=='v'&&clipb){snap('paste');const r=JSON.parse(JSON.stringify(clipb));r.id=uid();r.start=T;P.clips.push(r);sel=r.id;drawTL();drawProps();dirty()}else if(ctl&&k=='d'){e.preventDefault();dup()}});
 function splitter(id,fn){$(id).onpointerdown=e=>{e.preventDefault();const mv=ev=>fn(ev);const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)}}
 const root=document.documentElement.style;splitter('#sl',e=>root.setProperty('--lw',clamp(e.clientX,200,500)+'px'));splitter('#sr',e=>root.setProperty('--rw',clamp(innerWidth-e.clientX,220,520)+'px'));splitter('#hs',e=>root.setProperty('--th',clamp(innerHeight-e.clientY,150,innerHeight*.7)+'px'));
