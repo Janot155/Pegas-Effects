@@ -337,10 +337,14 @@ function fcClear(){for(const c of FC.map.values())if(FC.spare.length<4)FC.spare.
 const projSig=()=>JSON.stringify([P.tracks,P.clips,P.w,P.h,P.fit,P.fps])+'|'+Object.keys(blobs).length;
 function previewSettled(t){
  for(const c of P.clips){
-  if(t<c.start||t>=c.start+c.dur||c.text)continue;const m=P.media[c.media];if(!m)continue;const tr=trk(c.track);if(!tr||!live(tr))continue;
-  const e=els[c.id];if(m.type==='image'){if(!e||!e.complete)return false;continue}if(m.type!=='video')continue;
-  if(!e||e.seeking||e._cutroomSeeking||e.readyState<2||e._cutroomDesiredTime==null)return false;
-  const f=Math.max(1,m.fps||P.fps||30);if(Math.round(e._cutroomDesiredTime*f)!==Math.round(e.currentTime*f))return false
+  if(t<c.start||t>=c.start+c.dur||c.text)continue;
+  const m=P.media[c.media];if(!m)continue;const tr=trk(c.track);if(!tr||!live(tr))continue;
+  const e=els[c.id];if(m.type==='image'){if(!e||!e.complete)return false;continue}
+  if(m.type!=='video')continue;if(!e)return false;
+  const fps=Math.max(1,m.fps||P.fps||30),frame=Math.round((Number(e._cutroomDesiredTime)||0)*fps);
+  if(window.CutroomRetimeCache?.has?.(c.id,frame,cv.width,cv.height))continue;
+  if(e.seeking||e._cutroomSeeking||e.readyState<2||e._cutroomDesiredTime==null)return false;
+  if(Math.round(e._cutroomDesiredTime*fps)!==Math.round(e.currentTime*fps))return false
  }return true
 }
 function fcPut(key,W,H){
@@ -718,18 +722,37 @@ function dup(){const c=cur();if(!c)return;snap('dup');const r=JSON.parse(JSON.st
 function drawText(d,c,lt,W,H){const x=c.text,k=W/P.w;let s=x.s,a=1,ox=0,oy=0,sc=1,u=clamp(lt/.6,0,1);switch(x.an){case'pop':sc=EASE.bezier(u);break;case'fade':a=u;break;case'slide':ox=(1-EASE.out(u))*-300;a=u;break;case'type':s=s.slice(0,Math.floor(lt*14));break;case'bounce':oy=-Math.abs(Math.sin(lt*7))*60*Math.max(0,1-lt/1.5);break;case'glitch':if(Math.random()<.3)ox=(Math.random()-.5)*30;break;case'zoom':sc=3-2*EASE.out(u);a=u}
 d.save();d.translate(W/2+ox*k,H/2+oy*k);d.scale(sc,sc);d.globalAlpha=a;d.font=`${x.i?'italic ':''}${x.b?'700':'400'} ${x.size*k}px "${x.font}", sans-serif`;d.textAlign=x.al;d.textBaseline='middle';d.letterSpacing=x.ls*k+'px';if(x.sh){d.shadowColor='rgba(0,0,0,.7)';d.shadowBlur=x.sh*k;d.shadowOffsetY=x.sh/2*k}
 const tx=x.al=='left'?-W*.4:x.al=='right'?W*.4:0,ls=s.split('\n');ls.forEach((ln,i)=>{const y=(i-(ls.length-1)/2)*x.size*1.2*k;if(x.sw){d.lineWidth=x.sw*k;d.strokeStyle=x.sc;d.lineJoin='round';d.strokeText(ln,tx,y)}d.fillStyle=x.col;d.fillText(ln,tx,y)});d.restore()}
-function drawClip(ctx,c,t,W,H,k){const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);if(c.text)drawText(a,c,lt,W,H);else{const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;const s=(P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh)),x=(W-sw*s)/2,y=(H-sh*s)/2,retimed=!!(c.timeMap||c.rev||hasPT(c)),cache=retimeFrames[c.id];if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){if(retimed&&cache&&cache.width===W&&cache.height===H)a.drawImage(cache,0,0);else return}else{a.drawImage(e,x,y,sw*s,sh*s);if(retimed){let fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){fc=retimeFrames[c.id]=document.createElement('canvas');fc.width=W;fc.height=H}const fg=fc.getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)}}}
-let src=A,dst=sc('B',W,H),batch=[];
+function drawClip(ctx,c,t,W,H,k){
+ const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);
+ const media=P.media[c.media],retimed=!!(c.timeMap||c.rev||hasPT(c)),perfSettings=window.CutroomPerformanceConfig?.get?.()||{},smartPreview=!exporting&&playing&&perfSettings.effectPreviewMode==='smart';
+ if(c.text)drawText(a,c,lt,W,H);else{
+  const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;
+  const srcFps=Math.max(1,media?.fps||P.fps||30),desiredTime=Number.isFinite(e._cutroomDesiredTime)?e._cutroomDesiredTime:(Number(e.currentTime)||0),desiredFrame=Math.round(desiredTime*srcFps);
+  const cached=retimed?window.CutroomRetimeCache?.get?.(c.id,desiredFrame,W,H):null;
+  if(cached)a.drawImage(cached,0,0,W,H);
+  else if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){
+   const fallback=retimeFrames[c.id];if(retimed&&fallback&&fallback.width===W&&fallback.height===H)a.drawImage(fallback,0,0);else return;
+  }else{
+   const fit=P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh),x=(W-sw*fit)/2,y=(H-sh*fit)/2;
+   a.drawImage(e,x,y,sw*fit,sh*fit);
+   if(retimed&&!exporting){
+    window.CutroomRetimeCache?.store?.(c.id,desiredFrame,W,H,A);
+    const fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){retimeFrames[c.id]=document.createElement('canvas');retimeFrames[c.id].width=W;retimeFrames[c.id].height=H}
+    const fg=retimeFrames[c.id].getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)
+   }
+  }
+ }
+ let src=A,dst=sc('B',W,H),batch=[];
 const cpu=b=>{try{const d=dst.getContext('2d');if(!d)throw Error('2D canvas context unavailable');d.setTransform(1,0,0,1,0,0);d.clearRect(0,0,W,H);d.filter='none';d.globalAlpha=1;d.globalCompositeOperation='source-over';d.imageSmoothingEnabled=true;d.save();try{FX[b.t].f(d,src,b.p,W,H,t)}finally{d.restore()}[src,dst]=[dst,src];return true}catch(err){console.warn('Skipping failed effect during render:',b.t,err);if(exporting?.fxWarnings)exporting.fxWarnings.add(b.t);return false}};
 const flush=()=>{if(!batch.length)return;const b=batch;batch=[];let ok=false;try{ok=glRun(src,b,W,H,t,dst)}catch(e){glFatal(e)}if(ok)[src,dst]=[dst,src];else for(const x of b)cpu(x)};
-for(const f of c.fx){if(f.off||!FX[f.t])continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
+for(const f of c.fx){if(f.off||!FX[f.t])continue;if(smartPreview&&c.fx.length>=8&&PREVIEW_HEAVY_EFFECTS.has(f.t))continue;const p={};for(const q in FX[f.t].p)p[q]=get(c,`fx:${f.id}:${q}`,lt);if(effectIsNeutral(f.t,p))continue;if(glUsable(f.t)){batch.push({t:f.t,p});continue}flush();cpu({t:f.t,p})}
 flush();let o=get(c,'tr.o',lt)/100,s=get(c,'tr.s',lt)/100,r=get(c,'tr.r',lt)*rad,x=get(c,'tr.x',lt)*k,y=get(c,'tr.y',lt)*k,bl=0,fl=0;if(c.tin&&lt<c.tin.d){const m=TR[c.tin.t][1](lt/c.tin.d);o*=m.o??1;s*=m.s??1;r+=(m.r??0)*rad;x+=(m.x??0)*W;y+=(m.y??0)*W;bl=m.bl??0;fl=m.fl??0}ctx.save();ctx.globalAlpha=clamp(o,0,1);ctx.translate(W/2+x,H/2+y);ctx.rotate(r);ctx.scale(s,s);if(bl)ctx.filter=`blur(${bl*k}px)`;ctx.drawImage(src,-W/2,-H/2);ctx.restore();if(fl>0){ctx.globalAlpha=fl;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
 function render(ctx,W,H,t){ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.filter='none';ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const k=W/P.w,active=new Map();for(const c of P.clips){if(t<c.start||t>=c.start+c.dur)continue;let a=active.get(c.track);if(!a)active.set(c.track,a=[]);a.push(c)}for(let i=P.tracks.length-1;i>=0;i--){const tr=P.tracks[i];if(tr.k=='a'||!live(tr))continue;const a=active.get(tr.id);if(a)for(const c of a){try{drawClip(ctx,c,t,W,H,k)}catch(err){console.warn('Skipping clip render failure:',P.media[c.media]?.name||c.id,err);if(exporting?.fxWarnings)exporting.fxWarnings.add('clip '+(P.media[c.media]?.name||c.id))}}}}
-function requestVideoSeek(e,st,fps){
+function requestVideoSeek(e,st,fps,clipId){
  const frame=Math.max(0,Math.round(st*fps)),target=frame/fps;e._cutroomDesiredTime=target;
- // Never interrupt an in-flight decode seek. The render loop draws the last
- // completed frame while it waits, then schedules the newest target afterwards.
- if(e.seeking||e._cutroomSeeking)return false;
+ const size=exporting?.output||cv,w=size?.width||cv.width,h=size?.height||cv.height;
+ if(clipId&&window.CutroomRetimeCache?.has?.(clipId,frame,w,h)){e._cutroomUsingCache=true;e._cutroomRequestedFrame=frame;return false}
+ e._cutroomUsingCache=false;if(e.seeking||e._cutroomSeeking)return false;
  const currentFrame=Math.max(0,Math.round((Number(e.currentTime)||0)*fps));
  if(currentFrame===frame){e._cutroomRequestedFrame=frame;return false}
  e.pause();e._cutroomRequestedFrame=frame;e._cutroomSeeking=true;
@@ -776,7 +799,7 @@ function sync(t,play,exportMode=false){
    e.pause();e._cutroomRetimeMode='retimed-video';
    if(AC)window.CutroomEmbeddedAudio?.sync(c.id,e.currentSrc||e.src,AC,master,
       c.in+qt(c,lt)*c.speed,!!play,c.speed,gv,!!(exportMode&&lt<=1.5/Math.max(1,P.fps||30)));
-   requestVideoSeek(e,st,fps);
+   requestVideoSeek(e,st,fps,c.id);
    continue;
   }
   e.muted=false;
@@ -793,21 +816,30 @@ function sync(t,play,exportMode=false){
   if(play){
    const pr=clamp(c.speed,.0625,16);if(e.playbackRate!==pr)e.playbackRate=pr;
    if(e.paused)requestMediaPlay(e);
-   if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps)}
-  }else{e.pause();requestVideoSeek(e,st,fps)}
+   if(Math.abs(e.currentTime-st)>.3){e.pause();requestVideoSeek(e,st,fps,c.id)}
+  }else{e.pause();requestVideoSeek(e,st,fps,c.id)}
   e._cutroomRetimeMode='normal';
  }
 }
 const cv=$('#cv'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
-function resizeCv(){fcClear();const q=exporting?1:Q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
+function resizeCv(){fcClear();const q=exporting?1:(window.CutroomPerformance?.getScale?.()||Q);Q=q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
 function zoomCss(){if(zoomV){cv.style.width=P.w*zoomV+'px';cv.style.height=P.h*zoomV+'px';cv.style.maxWidth=cv.style.maxHeight='none'}else{cv.style.width=P.w+'px';cv.style.height=P.h+'px';cv.style.maxWidth=cv.style.maxHeight='100%'}}
-function adaptPreviewQuality(){/* Full-resolution preview is locked: never change quality or show quality-change notifications. */}
+function adaptPreviewQuality(ms){const r=window.CutroomPerformance?.recordPreviewFrame?.(ms);if(r?.changed){Q=r.scale;resizeCv()}}
 function previewComplexity(t){let score=0;for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||isA(c))continue;for(const f of c.fx){if(f.off)continue;score+=glDiscount(f.t)*({dirblur:2,radblur:2,zoomblur:2,glow:2,ccrays:3,cckal:3,ccrep:3,green:3,sharpen:2,edge:2,wave:2}[f.t]||1)}}return score}
-function retimeBusyAt(t){for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||!(c.timeMap||c.rev||hasPT(c)))continue;const tr=trk(c.track);if(!tr||!live(tr)||isA(c))continue;const e=els[c.id];if(e&&(e.seeking||e._cutroomSeeking))return true}return false}
+function retimeBusyAt(t){
+ for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||!(c.timeMap||c.rev||hasPT(c)))continue;
+  const tr=trk(c.track);if(!tr||!live(tr)||isA(c))continue;const e=els[c.id];
+  if(e){const m=P.media[c.media],fps=Math.max(1,m?.fps||P.fps||30),frame=Math.round((Number(e._cutroomDesiredTime)||0)*fps);
+   if(window.CutroomRetimeCache?.has?.(c.id,frame,cv.width,cv.height))continue;
+   if(e.seeking||e._cutroomSeeking)return true
+  }
+ }return false
+}
+
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.1,(now-last)/1000);last=now;
 if(playing&&!exporting){if(!retimeBusyAt(T))T+=dt;const e=endT();if(T>=e){T=e;playing=false;sync(T,false);$('#bP').textContent='▶ Play'}}
-const drawDue=true;
-if(!exporting&&(playing||dirtyN>0)&&drawDue){const started=performance.now();renderPreview();const cost=performance.now()-started;dirtyN=0;adaptPreviewQuality(cost);lastPreviewAt=now;fcount++;sync(T,playing)}
+const drawDue=window.CutroomPerformance?.shouldRender?.(now,playing,dirtyN>0)??(playing||dirtyN>0);
+if(!exporting&&drawDue){const started=performance.now();renderPreview();const cost=performance.now()-started;dirtyN=0;adaptPreviewQuality(cost);lastPreviewAt=now;fcount++;sync(T,playing)}
 if(now-ftime>1000){$('#fps').textContent=[playing?`${Math.round(fcount*1000/(now-ftime))} fps · preview ${Math.round(Q*100)}%`:'',perfLabel()].filter(Boolean).join(' · ');fcount=0;ftime=now}
 const ph=$('#ph');if(ph)ph.style.transform=`translateX(${HW+T*Z}px)`;$('#tc').textContent=tcode(T);if(playing){const s=$('#tscroll');if(HW+T*Z>s.scrollLeft+s.clientWidth-40)s.scrollLeft=HW+T*Z-120}
 if(playing&&(loop.n=(loop.n||0)+1)%4==0)syncProps()}
@@ -929,18 +961,17 @@ function touchExportFrame(ctx,w,h,index){
  ctx.save();ctx.fillStyle=(index&1)?'rgb(8,8,8)':'rgb(9,9,9)';ctx.fillRect(Math.max(0,w-1),Math.max(0,h-1),1,1);ctx.restore();
 }
 async function prepareExportFrame(t,force=false){
- const jobs=[];
+ const jobs=[],size=exporting?.output||cv,W=size.width,H=size.height;
  for(const c of P.clips){
   const tr=trk(c.track),m=P.media[c.media];
   if(c.text||!m||m.type!=='video'||t<c.start||t>=c.start+c.dur||!tr||tr.k==='a'||!live(tr))continue;
   const e=elFor(c),src=exportSourceTime(c,t,m);if(e)e._cutroomFps=m.fps||P.fps||30;
   const remapped=!!(c.timeMap||c.rev||hasPT(c));
-  // Regular clips use native playback between samples. Retimed clips use
-  // deterministic seeks so reverse and velocity remapping render the right frame.
+  if(remapped&&e){e._cutroomDesiredTime=src;const sourceFps=Math.max(1,m.fps||P.fps||30),sourceFrame=Math.round(src*sourceFps);if(window.CutroomRetimeCache?.has?.(c.id,sourceFrame,W,H))continue}
   if(!force&&!remapped&&e&&e.readyState>=2&&!e.seeking&&!e._cutroomSeeking&&Math.abs((Number(e.currentTime)||0)-src)<.16)continue;
-  jobs.push(waitVideoFrameForExport(e,src,m.name));
+  jobs.push(waitVideoFrameForExport(e,src,m.name))
  }
- await Promise.all(jobs);
+ await Promise.all(jobs)
 }
 async function runExport(o,mimeHint){
  if(exporting)return;ensureAC();try{await AC.resume()}catch{}
