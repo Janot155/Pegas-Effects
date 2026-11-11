@@ -40,3 +40,12 @@ For an unsupported plug-in, expression, 3D layer, mask/path, or specialized effe
 - Expressions are preserved as source and conservatively classified. The bridge does not execute arbitrary code.
 - Spatial/3D/mask/text/custom plugin data remains in PEG source properties when Pegas has no equivalent renderer.
 - The selected-layer JSON export describes one layer. The optional queued reference render is the whole composition, so it includes all visible layers in that composition.
+
+
+## Pegas Effect Graph files
+
+After a JSON import has been converted, the saved preset card exposes **Export lossless PEG graph**. The resulting `.peg.json` file contains the normalized PEG document rather than only the editable native effect approximations. Importing that file again recompiles the same graph and retains opaque effects and expression source.
+
+Use the Presets panel's **Test AE translator** action to run the synthetic regression suite in the browser. It checks typed values, animated property values, temporal ease metadata, transform curves, opaque plugin preservation, PEG serialization, re-import and RIFX/FaFX chunk inspection.
+
+The raw AE property tree is the authoritative source. A native Pegas preset is an additional derived representation for properties that have a registered adapter; it is not used as a replacement for the source graph.
