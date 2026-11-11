@@ -782,13 +782,41 @@ function sync(t,play,exportMode=false){
   if(gains[c.id])gains[c.id].gain.value=remapped?0:gv;
   else e.volume=remapped?0:clamp(gv,0,1);
   if(remapped){
-   // The picture follows the retime curve; the original soundtrack keeps its
-   // own forward-only clock and therefore never reverses or boomerangs.
-   e.muted=true;
-   e.pause();e._cutroomRetimeMode='retimed-video';
+   // Keep the soundtrack on its independent forward-only clock.
+   e.muted=true;e._cutroomRetimeMode='retimed-video';
    if(AC)window.CutroomEmbeddedAudio?.sync(c.id,e.currentSrc||e.src,AC,master,
       c.in+qt(c,lt)*c.speed,!!play,c.speed,gv,!!(exportMode&&lt<=1.5/Math.max(1,P.fps||30)));
-   requestVideoSeek(e,st,fps,c.id);
+   // Export remains frame-exact and deterministic. Only interactive preview
+   // uses native forward playback; the turning/reverse sections use cached frames.
+   if(exportMode||!play){
+    e.pause();requestVideoSeek(e,st,fps,c.id);continue;
+   }
+   const mappedRate=mappedSpeed(c,lt),current=Number(e.currentTime)||0;
+   if(mappedRate>.035){
+    if(e.seeking||e._cutroomSeeking)continue;
+    if(Math.abs(current-st)>.22){
+     requestVideoSeek(e,st,fps,c.id);
+     if(e._cutroomUsingCache){e.pause();continue}
+     if(e.seeking||e._cutroomSeeking)continue;
+    }
+    e._cutroomDesiredTime=Number(e.currentTime)||st;
+    e._cutroomRetimeContinuous=true;
+    const speed=clamp(mappedRate,.0625,16);if(Math.abs(e.playbackRate-speed)>.015)e.playbackRate=speed;
+    if(e.paused)requestMediaPlay(e);
+    continue;
+   }
+   if(mappedRate<-.035){
+    e._cutroomRetimeContinuous=false;e._cutroomDesiredTime=st;e.pause();
+    const sourceFrame=Math.round(st*fps);
+    if(window.CutroomRetimeCache?.has?.(c.id,sourceFrame,cv.width,cv.height))continue;
+    if(!e.seeking&&!e._cutroomSeeking)requestVideoSeek(e,st,fps,c.id);
+    continue;
+   }
+   // At a reversal point freeze on the exact peak/valley frame without
+   // repeatedly seeking while the curve derivative is near zero.
+   e._cutroomRetimeContinuous=false;e.pause();
+   if(Math.abs(current-st)>1.1/fps)requestVideoSeek(e,st,fps,c.id);
+   else e._cutroomDesiredTime=current;
    continue;
   }
   e.muted=false;
