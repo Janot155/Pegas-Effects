@@ -664,7 +664,7 @@ async function showPresetPreview(pr){
 }
 /* ---------- state ---------- */
 const newProj=()=>({name:'Untitled',w:1920,h:1080,format:'landscape',fit:'contain',fps:30,tracks:[{id:'T1',n:'Text',k:'t'},{id:'V2',n:'Video 2',k:'v'},{id:'V1',n:'Video 1',k:'v'},{id:'A1',n:'Audio 1',k:'a'},{id:'A2',n:'Audio 2',k:'a'}],clips:[],media:{}});
-let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=(window.CutroomPerformance?.getScale?.()||.58),qualityMode='adaptive',exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
+let P=newProj(),sel=null,T=0,playing=false,Z=80,snapOn=true,curEase='inout',tab='media',clipb=null,hist=[],redoS=[],lastTag='',lastT=0,dirtyN=1,Q=(window.CutroomPerformance?.getScale?.()||.58),qualityMode=(window.CutroomPerformanceConfig?.get?.().adaptiveQuality===false?'manual':'adaptive'),exporting=null,AC,MD,master,rowsReg=[],last=0,fcount=0,ftime=0,zoomV=0,lastPreviewAt=0,renderCost=0,slowFrames=0,fastFrames=0;
 const blobs={},urls={},els={},gains={},peaks={},selectedMedia=new Set(),HW=132,cur=()=>P.clips.find(c=>c.id==sel),dirty=()=>dirtyN=1,endT=()=>Math.max(0,...P.clips.map(c=>c.start+c.dur)),trk=id=>P.tracks.find(t=>t.id==id);
 const isA=c=>!c.text&&P.media[c.media]?.type=='audio',kind=c=>c.text?'t':isA(c)?'a':'v',url=id=>urls[id]??=URL.createObjectURL(blobs[id]);
 const anySolo=()=>P.tracks.some(t=>t.solo),live=tr=>!tr.hide&&(!anySolo()||tr.solo),audible=tr=>!tr.mute&&(!anySolo()||tr.solo);
@@ -834,9 +834,9 @@ function sync(t,play,exportMode=false){
  }
 }
 const cv=$('#cv'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
-function resizeCv(){fcClear();const q=exporting?1:(window.CutroomPerformance?.getScale?.()||Q);Q=q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
+function resizeCv(){fcClear();const q=exporting?1:Q;cv.width=Math.max(2,Math.round(P.w*q));cv.height=Math.max(2,Math.round(P.h*q));zoomCss();dirty()}
 function zoomCss(){if(zoomV){cv.style.width=P.w*zoomV+'px';cv.style.height=P.h*zoomV+'px';cv.style.maxWidth=cv.style.maxHeight='none'}else{cv.style.width=P.w+'px';cv.style.height=P.h+'px';cv.style.maxWidth=cv.style.maxHeight='100%'}}
-function adaptPreviewQuality(ms){const r=window.CutroomPerformance?.recordPreviewFrame?.(ms);if(r?.changed){Q=r.scale;resizeCv()}}
+function adaptPreviewQuality(ms){if(qualityMode==='manual')return;const r=window.CutroomPerformance?.recordPreviewFrame?.(ms);if(r?.changed){Q=r.scale;resizeCv()}}
 function previewComplexity(t){let score=0;for(const c of P.clips){if(t<c.start||t>=c.start+c.dur||isA(c))continue;for(const f of c.fx){if(f.off)continue;score+=glDiscount(f.t)*({dirblur:2,radblur:2,zoomblur:2,glow:2,ccrays:3,cckal:3,ccrep:3,green:3,sharpen:2,edge:2,wave:2}[f.t]||1)}}return score}
 function retimeBusyAt(t){
  for(const c of P.clips){
@@ -957,6 +957,7 @@ function formatDlg(){const body=el('div');body.innerHTML='<h3>Exact canvas forma
 function applyPerformanceConfig(next){
  const cfg=next||window.CutroomPerformanceConfig?.get?.()||{};
  window.CutroomPerformance?.update?.(cfg);
+ qualityMode=cfg.adaptiveQuality===false?'manual':'adaptive';
  Q=window.CutroomPerformance?.getScale?.()||cfg.previewScale||.58;
  FC.max=Math.max(16,Number(cfg.previewCacheMB)||72)*1048576;
  GL.poolBudget=Math.max(16,Number(cfg.gpuCacheMB)||96)*1048576;
@@ -1123,7 +1124,7 @@ $('#sOpen').onchange=async e=>{if(!e.target.value)return;const s=await idb('proj
 $('#bPE').onclick=()=>save(P.name.replace(/\W+/g,'_')+'.cutroom.json',new Blob([JSON.stringify({format:'cutroom-project',version:1,_doc:'project = {name,w,h,fps,tracks[{id,n,k:v|a|t,mute,solo,lock,hide}],clips[{id,track,media,start,in,dur,speed,rev,vol,fi,fo,tr{x,y,s,r,o},fx[{id,t,p,off}],kf{key:[{t,v,e}]},tin,text}],media{id:{name,type,w,h,dur,fps}}}. Media files are not embedded; re-import files with the same names to relink.',project:snapshot()},null,1)],{type:'application/json'}));
 $('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bPerf').onclick=performanceDlg;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
 $('#bP').onclick=togglePlay;$('#bH').onclick=()=>seek(0);$('#bE').onclick=()=>seek(endT());$('#bB').onclick=()=>seek(T-1/P.fps);$('#bF').onclick=()=>seek(T+1/P.fps);
-$('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode='manual';Q=Math.max(.125,Math.min(1,+e.target.value||1));if(!exporting)resizeCv();$('#fps').title=`Preview resolution: ${Math.round(Q*100)}%`};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
+$('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode='manual';Q=Math.max(.125,Math.min(1,+e.target.value||1));window.CutroomPerformance?.update?.({...window.CutroomPerformance?.getSettings?.(),previewScale:Q,adaptiveQuality:false});if(!exporting)resizeCv();$('#fps').title=`Preview resolution: ${Math.round(Q*100)}%`};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
 addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;const k=e.key.toLowerCase(),ctl=e.ctrlKey||e.metaKey;if(k==' '){e.preventDefault();togglePlay()}else if(k=='s'&&!ctl)split();else if(k=='delete'||k=='backspace')del();else if(k=='arrowleft')seek(T-(e.shiftKey?1:1/P.fps));else if(k=='arrowright')seek(T+(e.shiftKey?1:1/P.fps));else if(k=='home')seek(0);else if(k=='end')seek(endT());else if(ctl&&k=='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(ctl&&k=='y'){e.preventDefault();redo()}else if(ctl&&k=='c')clipb=cur()&&JSON.parse(JSON.stringify(cur()));else if(ctl&&k=='v'&&clipb){snap('paste');const r=JSON.parse(JSON.stringify(clipb));r.id=uid();r.start=T;P.clips.push(r);sel=r.id;drawTL();drawProps();dirty()}else if(ctl&&k=='d'){e.preventDefault();dup()}});
 function splitter(id,fn){$(id).onpointerdown=e=>{e.preventDefault();const mv=ev=>fn(ev);const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};addEventListener('pointermove',mv);addEventListener('pointerup',up)}}
 const root=document.documentElement.style;splitter('#sl',e=>root.setProperty('--lw',clamp(e.clientX,200,500)+'px'));splitter('#sr',e=>root.setProperty('--rw',clamp(innerWidth-e.clientX,220,520)+'px'));splitter('#hs',e=>root.setProperty('--th',clamp(innerHeight-e.clientY,150,innerHeight*.7)+'px'));
