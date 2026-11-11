@@ -43,6 +43,14 @@ For an unsupported plug-in, expression, 3D layer, mask/path, or specialized effe
 
 
 
+
+## Applying imported FFX presets
+
+The raw FFX importer now creates a best-effort native effect stack when it recognizes supported effect match-name strings (for example Gaussian Blur, Glow, Directional Blur, CC Light Sweep, CC Kaleida, CC RepeTile, CC Mirror and CC Radial Blur). Those candidates use Pegas defaults because the binary importer does not have the original AE parameter/keyframe values. If no supported match name exists, a conservative filename hint such as "Zoom", "Shake" or "Cinematic Glow" may be used. This is explicitly labelled as a heuristic, not an exact FFX translation.
+
+After importing, choose **Use on this clip** in the preset preview or use the small **Use** action on the preset card. Dropping an FFX file directly onto a clip applies the best-effort stack to that exact clip when candidates were found. Dropping an AE Bridge JSON onto a clip applies the translated properties and keyframes extracted by the JSX exporter.
+
+
 ## Direct drop onto a Pegas clip
 
 - Drag an AE Bridge JSON export (`.json`) onto a video, image, or text clip. Pegas compiles it to the native preset schema and applies every supported native approximation to that exact target clip; the full PEG source graph remains saved in Presets.
