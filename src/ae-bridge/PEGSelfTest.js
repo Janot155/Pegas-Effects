@@ -28,7 +28,7 @@
    };
    const result=root.PEG.GraphCompiler.compile(source,{FX,defs,projectWidth:1920,projectHeight:1080});
    check('Known AE effect maps to native candidate',result.preset.fx.length===1&&result.preset.fx[0].t==='blur');
-   check('Source numeric parameter retained',result.preset.fx[0]?.p.r===22);
+   check('Animated parameter uses first keyframe and original static value is preserved',result.preset.fx[0]?.p.r===12&&result.graph.effects[0]?.flatProperties[0]?.value===22);
    check('Keyframe time is normalized',result.preset.kf['fx:0:r']?.[1]?.t===1);
    check('AE temporal ease metadata is retained',!!result.preset.kf['fx:0:r']?.[0]?.meta?.ae?.outTemporalEase?.length);
    check('Unknown plugin remains opaque',result.graph.opaque.some(x=>x.matchName==='Vendor Magic Glow'));
