@@ -69,14 +69,32 @@
   if(layer.threeDLayer)graph.warnings.push('The source layer is 3D; Pegas is currently a 2D renderer.');
   return{transform,kf,duration}
  }
+ function fromPEG(graph){
+  S().assertGraph(graph);
+  const transform={};
+  (graph.transform||[]).forEach(item=>{if(item?.slot&&item.property)transform[item.slot]=S().clone(item.property)});
+  return{
+   format:'cutroom-ae-export',schemaVersion:graph.version||1,
+   source:S().clone(graph.source||{}),composition:S().clone(graph.composition||{}),
+   layer:S().clone(graph.layer||{}),
+   effects:(graph.effects||[]).map(effect=>S().clone(effect)),
+   transform,sourceData:S().clone(graph)
+  }
+ }
  function compile(input,options={}){
-  const available=options.FX||{},defaults=options.defs||(()=>({})),json=input?.format==='cutroom-ae-export'&&Array.isArray(input.effects)?input:normalizeLegacyAE(input);
+  const available=options.FX||{},defaults=options.defs||(()=>({})),pegInput=S().isGraph(input)?input:null,
+   json=pegInput?fromPEG(pegInput):(input?.format==='cutroom-ae-export'&&Array.isArray(input.effects)?input:normalizeLegacyAE(input));
   const comp=json.composition||{},layer=json.layer||{},duration=Math.max(.0001,Number(layer.duration)||((+layer.outPoint||0)-(+layer.inPoint||0))||+comp.duration||1);
   const graph=S().create(json.source||{});
   graph.source={...graph.source,...S().clone(json.source||{}),applicationVersion:json.source?.applicationVersion||json.source?.appVersion||null};
   graph.composition={...graph.composition,...S().clone(comp)};
   graph.layer={...graph.layer,...S().clone(layer),duration};
-  graph.provenance={...graph.provenance,sourceSchemaVersion:json.schemaVersion||1,sourceFormat:json.format||'legacy-cutroom-ae-export'};
+  graph.provenance={...graph.provenance,sourceSchemaVersion:json.schemaVersion||1,sourceFormat:pegInput?'pegas-effect-graph':(json.format||'legacy-cutroom-ae-export')};
+  if(pegInput){
+   graph.opaque=S().clone(pegInput.opaque||[]);
+   graph.warnings=S().clone(pegInput.warnings||[]);
+   graph.expressions=S().clone(pegInput.expressions||[]);
+  }
   graph.effects=C().normalizeEffects(json.effects||[],duration);
   graph.transform=Object.entries(json.transform||{}).map(([slot,node])=>({
    slot,property:C().normalizeNode(node,duration,[])
@@ -153,5 +171,5 @@
   };
   return{graph,preset,rows,unsupported,warnings,counts:{sourceEffects:graph.effects.length,convertedEffects:fx.length,opaqueEffects:graph.opaque.filter(x=>x.kind==='effect').length,convertedKeyframes:Object.keys(kf).length,expressions:expressions.length}}
  }
- root.PEG.GraphCompiler={compile,normalizeLegacyAE};
+ root.PEG.GraphCompiler={compile,fromPEG,normalizeLegacyAE};
 })(window);
