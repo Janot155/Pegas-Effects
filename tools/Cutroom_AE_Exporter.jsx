@@ -152,10 +152,31 @@
         }
         return out;
     }
+    function stringifyJSON(value, indent){
+        if (typeof JSON !== "undefined" && JSON.stringify) return JSON.stringify(value, null, indent || 2);
+        var pad="", i; for(i=0;i<(indent||2);i++)pad+=" ";
+        function quote(text){
+            return '"'+String(text).replace(/\\\\/g,"\\\\\\\\").replace(/"/g,'\\"').replace(/\\r/g,"\\\\r").replace(/\\n/g,"\\\\n").replace(/\\t/g,"\\\\t")+'"';
+        }
+        function encode(v, level){
+            if(v===null||v===undefined)return "null";
+            if(typeof v==="number")return isFinite(v)?String(v):"null";
+            if(typeof v==="boolean")return v?"true":"false";
+            if(typeof v==="string")return quote(v);
+            var next=level+1, gap=new Array(next+1).join(pad), close=new Array(level+1).join(pad), parts=[];
+            if(v.constructor===Array){
+                for(var a=0;a<v.length;a++)parts.push(gap+encode(v[a],next));
+                return parts.length?"[\\n"+parts.join(",\\n")+"\\n"+close+"]":"[]";
+            }
+            for(var key in v)if(v.hasOwnProperty(key)&&typeof v[key]!=="undefined")parts.push(gap+quote(key)+": "+encode(v[key],next));
+            return parts.length?"{\\n"+parts.join(",\\n")+"\\n"+close+"}":"{}";
+        }
+        return encode(value,0);
+    }
     function writeJSON(file, data){
         file.encoding="UTF-8";
         if(!file.open("w"))throw new Error("Could not open output file: "+file.error);
-        try{file.write(JSON.stringify(data,null,2));}finally{file.close();}
+        try{file.write(stringifyJSON(data,2));}finally{file.close();}
     }
     function exportLayer(comp,layer,file){
         var duration=Math.max(0.000001,layer.outPoint-layer.inPoint);
