@@ -988,7 +988,7 @@ function performanceDlg(){
  const values=()=>({previewFps:+previewFps.value,previewScale:+previewScale.value,adaptiveQuality:adaptive.checked,effectPreviewMode:effectMode.value,previewCacheMB:+previewCache.value,gpuCacheMB:+gpuCache.value,retimeCacheMB:+retimeCache.value,retimeCacheEnabled:retimeEnabled.checked,exportMaxFps:+exportFps.value,exportMaxPixels:Math.round((+exportPixels.value||16.8)*1e6),exportBitrateCapMbps:+bitrate.value,exportYieldEveryFrames:+yieldFrames.value,exportProgressEvery:+progressEvery.value});
  const fields=[previewFps,previewScale,adaptive,effectMode,previewCache,gpuCache,retimeCache,retimeEnabled,exportFps,exportPixels,bitrate,yieldFrames,progressEvery];
  const updatePreset=()=>{
-  const val=profile.value,preset=val==='auto'?config.device&&config.PRESETS.balanced:config.PRESETS[val];
+  const val=profile.value,preset=config.presetFor?.(val)||config.PRESETS[val];
   if(!preset)return;
   previewFps.value=preset.previewFps;previewScale.value=preset.previewScale;adaptive.checked=preset.adaptiveQuality;
   effectMode.value=preset.effectPreviewMode||'smart';previewCache.value=preset.previewCacheMB;gpuCache.value=preset.gpuCacheMB;
