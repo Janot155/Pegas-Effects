@@ -464,6 +464,7 @@ const FFX_INTENTS=[
  [/punch/,{label:'Punch-in zoom',kf:{'tr.s':[[0,100,'out'],[.2,120,'inout'],[1,120,'linear']]}}],
  [/zoom\s*in|push\s*in|scale\s*up|dolly\s*in|slow\s*in/,{label:'Zoom in',kf:{'tr.s':[[0,100,'inout'],[1,125,'inout']]}}],
  [/zoom\s*out|pull\s*out|scale\s*down|dolly\s*out|pull\s*back/,{label:'Zoom out',kf:{'tr.s':[[0,125,'inout'],[1,100,'inout']]}}],
+ [/\bzoom\b/,{label:'Zoom in',kf:{'tr.s':[[0,100,'inout'],[1,125,'inout']]}}],
  [/spin|rotate|roll/,{label:'Spin',kf:{'tr.r':[[0,0,'inout'],[1,360,'inout']]}}],
  [/fade\s*in/,{label:'Fade in',kf:{'tr.o':[[0,0,'out'],[.25,100,'linear'],[1,100,'linear']]}}],
  [/fade\s*out/,{label:'Fade out',kf:{'tr.o':[[0,100,'linear'],[.75,100,'in'],[1,0,'linear']]}}],
