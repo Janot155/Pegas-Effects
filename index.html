@@ -954,6 +954,58 @@ const CANVAS_FORMATS=[['tiktok','TikTok video 9:16',1080,1920,'1080 × 1920 · v
 function updateFormatLabel(){let a=P.w,b=P.h;while(b){const t=a%b;a=b;b=t}const f=CANVAS_FORMATS.find(x=>x[2]===P.w&&x[3]===P.h),ratio=`${P.w/a}:${P.h/a}`;$('#fmtlabel').textContent=`${P.w}×${P.h} · ${f?ratio:ratio} · ${P.fit==='cover'?'crop fill':'fit'}`}
 function applyCanvasSize(w,h,format,fit=P.fit||'cover'){P.w=clamp(Math.round(+w)||1920,16,7680);P.h=clamp(Math.round(+h)||1080,16,4320);P.format=format||'custom';P.fit=fit==='contain'?'contain':'cover';resizeCv();drawTL();drawProps();updateFormatLabel();toast(`Canvas set to exact ${P.w}×${P.h} · ${P.fit==='cover'?'crop to fill':'fit whole frame'}`)}
 function formatDlg(){const body=el('div');body.innerHTML='<h3>Exact canvas formats</h3><p class="hint">Choose the actual pixel dimensions. Export defaults to these exact dimensions. Crop to fill cuts off the outside of the source frame; Fit keeps the whole source and may show bars.</p>';const fitRow=el('div','row'),fitLabel=el('label',null,'Media fit'),fit=el('select');fit.innerHTML='<option value="cover">Crop to fill (cover)</option><option value="contain">Fit whole frame (letterbox)</option>';fit.value='cover';fitRow.append(fitLabel,fit);body.append(fitRow);const grid=el('div','format-grid');CANVAS_FORMATS.forEach(([id,name,w,h,desc])=>{const b=el('button','format-tile',`<b>${esc(name)}</b><small>${w} × ${h} · ${esc(desc)}</small>`);b.onclick=()=>{closeMod();applyCanvasSize(w,h,id,fit.value)};grid.append(b)});body.append(grid);const custom=el('div');custom.style.marginTop='12px';custom.innerHTML='<h4>Custom dimensions (pixels)</h4>';const row=el('div','row'),w=el('input'),h=el('input');w.type=h.type='number';w.min=h.min='16';w.max=h.max='7680';w.value=P.w;h.value=P.h;w.placeholder='Width px';h.placeholder='Height px';const b=el('button','pri','Apply custom');b.onclick=()=>{closeMod();applyCanvasSize(w.value,h.value,'custom',fit.value)};row.append(w,h,b);custom.append(row);body.append(custom);modal(body,[['Close']])}
+function applyPerformanceConfig(next){
+ const cfg=next||window.CutroomPerformanceConfig?.get?.()||{};
+ window.CutroomPerformance?.update?.(cfg);
+ Q=window.CutroomPerformance?.getScale?.()||cfg.previewScale||.58;
+ FC.max=Math.max(16,Number(cfg.previewCacheMB)||72)*1048576;
+ GL.poolBudget=Math.max(16,Number(cfg.gpuCacheMB)||96)*1048576;
+ window.CutroomRetimeCache?.configure?.({budgetMB:cfg.retimeCacheMB||160,enabled:cfg.retimeCacheEnabled!==false});
+ try{glDisposePool();GL.W=0;GL.H=0}catch{}
+ resizeCv();dirty();glUI();return cfg
+}
+function performanceDlg(){
+ const config=window.CutroomPerformanceConfig,base=config?.get?.()||{},body=el('div');
+ body.append(el('h3',null,'Performance & memory'));
+ body.append(el('p','hint','Preview settings only affect editing playback. Export always renders the full effect stack at the chosen output size.'));
+ const field=(name,node,hint)=>{const row=el('div','row');row.style.alignItems='center';const label=el('label',null,name);label.style.minWidth='160px';row.append(label,node);body.append(row);if(hint)body.append(el('p','hint',hint));return node};
+ const profile=el('select');
+ [['auto','Auto · detect this device'],['performance','Maximum performance'],['balanced','Balanced'],['quality','High quality'],['custom','Custom settings']].forEach(([v,n])=>profile.add(new Option(n,v)));
+ profile.value=base.profile||'auto';field('Performance profile',profile);
+ const previewFps=el('select');[15,20,24,30,45,60].forEach(v=>previewFps.add(new Option(v+' fps',String(v))));previewFps.value=String(base.previewFps||30);field('Preview FPS',previewFps);
+ const previewScale=el('input');previewScale.type='number';previewScale.min='.25';previewScale.max='1';previewScale.step='.05';previewScale.value=base.previewScale||.58;field('Preview resolution scale',previewScale,'0.50 means the editor renders half the project width and height. Export resolution is unchanged.');
+ const adaptive=el('input');adaptive.type='checkbox';adaptive.checked=base.adaptiveQuality!==false;field('Adaptive preview resolution',adaptive,'Automatically lowers preview scale when rendering is too slow, then slowly recovers.');
+ const effectMode=el('select');[['smart','Smart · reduce heavy preview effects'],['all','All effects in preview']].forEach(([v,n])=>effectMode.add(new Option(n,v)));effectMode.value=base.effectPreviewMode||'smart';field('Effect preview mode',effectMode,'Smart mode may omit selected heavy effects only while playing large stacks. Paused preview and exports render all effects.');
+ const previewCache=el('input');previewCache.type='number';previewCache.min=16;previewCache.max=512;previewCache.step=16;previewCache.value=base.previewCacheMB||72;field('Preview cache (MB)',previewCache);
+ const gpuCache=el('input');gpuCache.type='number';gpuCache.min=16;gpuCache.max=512;gpuCache.step=16;gpuCache.value=base.gpuCacheMB||96;field('GPU cache (MB)',gpuCache);
+ const retimeCache=el('input');retimeCache.type='number';retimeCache.min=16;retimeCache.max=512;retimeCache.step=16;retimeCache.value=base.retimeCacheMB||160;field('Reverse / boomerang cache (MB)',retimeCache);
+ const retimeEnabled=el('input');retimeEnabled.type='checkbox';retimeEnabled.checked=base.retimeCacheEnabled!==false;field('Enable retime frame cache',retimeEnabled);
+ const exportFps=el('select');[24,30,50,60,90,120].forEach(v=>exportFps.add(new Option(v+' fps maximum',String(v))));exportFps.value=String(base.exportMaxFps||60);field('Maximum export FPS',exportFps);
+ const exportPixels=el('input');exportPixels.type='number';exportPixels.min=2.1;exportPixels.max=33.5;exportPixels.step=.5;exportPixels.value=((base.exportMaxPixels||16777216)/1e6).toFixed(1);field('Export memory budget (MP)',exportPixels,'Limits output frame allocation to avoid browser out-of-memory crashes.');
+ const bitrate=el('input');bitrate.type='number';bitrate.min=12;bitrate.max=160;bitrate.step=4;bitrate.value=base.exportBitrateCapMbps||80;field('Export bitrate cap (Mbps)',bitrate);
+ const yieldFrames=el('input');yieldFrames.type='number';yieldFrames.min=1;yieldFrames.max=12;yieldFrames.step=1;yieldFrames.value=base.exportYieldEveryFrames||2;field('Yield every N rendered frames',yieldFrames,'Controls extra UI yields when rendering takes longer than the selected output frame interval.');
+ const progressEvery=el('input');progressEvery.type='number';progressEvery.min=1;progressEvery.max=20;progressEvery.step=1;progressEvery.value=base.exportProgressEvery||3;field('Progress UI update interval',progressEvery);
+ const values=()=>({previewFps:+previewFps.value,previewScale:+previewScale.value,adaptiveQuality:adaptive.checked,effectPreviewMode:effectMode.value,previewCacheMB:+previewCache.value,gpuCacheMB:+gpuCache.value,retimeCacheMB:+retimeCache.value,retimeCacheEnabled:retimeEnabled.checked,exportMaxFps:+exportFps.value,exportMaxPixels:Math.round((+exportPixels.value||16.8)*1e6),exportBitrateCapMbps:+bitrate.value,exportYieldEveryFrames:+yieldFrames.value,exportProgressEvery:+progressEvery.value});
+ const fields=[previewFps,previewScale,adaptive,effectMode,previewCache,gpuCache,retimeCache,retimeEnabled,exportFps,exportPixels,bitrate,yieldFrames,progressEvery];
+ const updatePreset=()=>{
+  const val=profile.value,preset=val==='auto'?config.device&&config.PRESETS.balanced:config.PRESETS[val];
+  if(!preset)return;
+  previewFps.value=preset.previewFps;previewScale.value=preset.previewScale;adaptive.checked=preset.adaptiveQuality;
+  effectMode.value=preset.effectPreviewMode||'smart';previewCache.value=preset.previewCacheMB;gpuCache.value=preset.gpuCacheMB;
+  retimeCache.value=preset.retimeCacheMB;retimeEnabled.checked=preset.retimeCacheEnabled;
+  exportFps.value=preset.exportMaxFps;exportPixels.value=(preset.exportMaxPixels/1e6).toFixed(1);
+  bitrate.value=preset.exportBitrateCapMbps;yieldFrames.value=preset.exportYieldEveryFrames;progressEvery.value=preset.exportProgressEvery;
+ };
+ profile.onchange=()=>{if(profile.value!=='custom')updatePreset()};
+ fields.forEach(node=>node.addEventListener('change',()=>{profile.value='custom'}));
+ const apply=()=>{
+  let next;
+  if(['auto','performance','balanced','quality'].includes(profile.value))next=config.setProfile(profile.value);
+  else next=config.save({profile:'custom',...values()});
+  applyPerformanceConfig(next);closeMod();toast('Performance profile saved.')
+ };
+ modal(body,[['Reset',()=>{const next=config.reset();applyPerformanceConfig(next);closeMod();toast('Performance profile reset.')}],['Cancel'],['Apply',apply]]);
+}
 function settings(){const b=el('div',null,'<h3>Project settings</h3>');const o={name:P.name,w:P.w,h:P.h,fps:P.fps};inp(b,'Name',o,'name','text');inp(b,'Width',o,'w');inp(b,'Height',o,'h');inp(b,'Frame rate',o,'fps','text',[24,25,30,50,60,90,120].map(x=>[x,x+' fps']));modal(b,[['Cancel'],['Apply',()=>{P.name=o.name;$('#pname').value=P.name;P.fps=clamp(+o.fps||30,1,120);applyCanvasSize(o.w,o.h,'custom')} ]])}
 /* ---------- export ---------- */
 function exportDlg(){if(!window.MediaRecorder)return toast('This browser has no MediaRecorder, so video export is unavailable.',1);if(!P.clips.length)return toast('Add clips to the timeline first.',1);const mimes={webm:['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mp4:['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4']},ok=Object.fromEntries(Object.entries(mimes).map(([k,v])=>[k,v.find(x=>MediaRecorder.isTypeSupported(x))]));
@@ -1040,7 +1092,7 @@ async function runExport(o,mimeHint){
   if(MD?.stream)for(const a of MD.stream.getAudioTracks())if(a.readyState==='live')stream.addTrack(a);
   const bitrateCap=Math.max(12,Math.min(160,perfCfg.exportBitrateCapMbps||80)),recommendedMbps=12*(Wd*H/(1920*1080))*(fps/30),videoMbps=clamp(Math.max(+o.vb||12,recommendedMbps),4,bitrateCap),opt={videoBitsPerSecond:Math.round(videoMbps*1e6),audioBitsPerSecond:Math.max(32,Math.round((+o.ab||192)*1000))};if(chosen)opt.mimeType=chosen;
   rec=new MediaRecorder(stream,opt);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recStopped=new Promise(resolve=>{rec.onstop=resolve;rec.onerror=e=>{failed=e.error||new Error('MediaRecorder failed.')}});rec.start(250);if(manualCapture)vt.requestFrame();await audioPrime;
-  const frameMs=1000/fps,progressEvery=Math.max(1,perfCfg.exportProgressEvery||3);completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
+  const frameMs=1000/fps,progressEvery=Math.max(1,perfCfg.exportProgressEvery||3),yieldEvery=Math.max(1,perfCfg.exportYieldEveryFrames||2);completed=1;exporting.completed=completed;$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`;
   for(let i=1;i<frameCount;i++){
    if(exporting.cancel)break;if(failed)throw failed;const frameStarted=performance.now(),t=Math.min(end-1e-5,start+i/fps);T=t;await prepareExportFrame(t);if(exporting.cancel)break;
    render(outCtx,Wd,H,t);if(failed)throw failed;touchExportFrame(outCtx,Wd,H,i);if(manualCapture)vt.requestFrame();completed=i+1;exporting.completed=completed;if(i%progressEvery===0||i===frameCount-1){$('#xp').value=completed/frameCount;$('#xt').textContent=`${completed} / ${frameCount} frames · ${Math.round(completed/frameCount*100)}%`}
@@ -1048,7 +1100,7 @@ async function runExport(o,mimeHint){
    // Decode/render time already consumes part of this frame interval. Wait
    // only for the remainder; adding a full frame delay after every seek makes
    // the exported video progressively longer than the project timeline.
-   await delay(Math.max(0,frameMs-(performance.now()-frameStarted)));
+   const waitMs=Math.max(0,frameMs-(performance.now()-frameStarted));if(waitMs>0)await delay(waitMs);else if(i%yieldEvery===0)await delay(0);
   }
   if(exporting.cancel){toast('Export cancelled. No partial video was saved.');return}if(completed!==frameCount)throw new Error('Export stopped before all frames were rendered.');
   // Hold the final rendered frame for one regular frame interval. Do not
@@ -1069,7 +1121,7 @@ addEventListener('dragover',e=>e.preventDefault());addEventListener('drop',e=>{e
 $('#bNew').onclick=async()=>{await saveProj();await idb('projects','put',JSON.stringify(snapshot()),'backup '+new Date().toLocaleString()).catch(()=>{});loadProject(newProj())};$('#bSave').onclick=()=>saveProj($('#pname').value);$('#pname').onchange=()=>P.name=$('#pname').value||'Untitled';
 $('#sOpen').onchange=async e=>{if(!e.target.value)return;const s=await idb('projects','get',e.target.value);await loadProject(JSON.parse(s));e.target.value=''};
 $('#bPE').onclick=()=>save(P.name.replace(/\W+/g,'_')+'.cutroom.json',new Blob([JSON.stringify({format:'cutroom-project',version:1,_doc:'project = {name,w,h,fps,tracks[{id,n,k:v|a|t,mute,solo,lock,hide}],clips[{id,track,media,start,in,dur,speed,rev,vol,fi,fo,tr{x,y,s,r,o},fx[{id,t,p,off}],kf{key:[{t,v,e}]},tin,text}],media{id:{name,type,w,h,dur,fps}}}. Media files are not embedded; re-import files with the same names to relink.',project:snapshot()},null,1)],{type:'application/json'}));
-$('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
+$('#bPI').onclick=()=>$('#fj').click();$('#bSet').onclick=settings;$('#bPerf').onclick=performanceDlg;$('#bFormat').onclick=formatDlg;$('#bUn').onclick=undo;$('#bRe').onclick=redo;$('#bExp').onclick=exportDlg;
 $('#bP').onclick=togglePlay;$('#bH').onclick=()=>seek(0);$('#bE').onclick=()=>seek(endT());$('#bB').onclick=()=>seek(T-1/P.fps);$('#bF').onclick=()=>seek(T+1/P.fps);
 $('#zm').onchange=e=>{zoomV=+e.target.value;zoomCss()};$('#ql').onchange=e=>{qualityMode='manual';Q=Math.max(.125,Math.min(1,+e.target.value||1));if(!exporting)resizeCv();$('#fps').title=`Preview resolution: ${Math.round(Q*100)}%`};$('#bFs').onclick=()=>cv.requestFullscreen?.().catch(()=>toast('Fullscreen is blocked in this frame.',1));
 addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;const k=e.key.toLowerCase(),ctl=e.ctrlKey||e.metaKey;if(k==' '){e.preventDefault();togglePlay()}else if(k=='s'&&!ctl)split();else if(k=='delete'||k=='backspace')del();else if(k=='arrowleft')seek(T-(e.shiftKey?1:1/P.fps));else if(k=='arrowright')seek(T+(e.shiftKey?1:1/P.fps));else if(k=='home')seek(0);else if(k=='end')seek(endT());else if(ctl&&k=='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(ctl&&k=='y'){e.preventDefault();redo()}else if(ctl&&k=='c')clipb=cur()&&JSON.parse(JSON.stringify(cur()));else if(ctl&&k=='v'&&clipb){snap('paste');const r=JSON.parse(JSON.stringify(clipb));r.id=uid();r.start=T;P.clips.push(r);sel=r.id;drawTL();drawProps();dirty()}else if(ctl&&k=='d'){e.preventDefault();dup()}});
