@@ -21,7 +21,7 @@
     const next=finish+(size&1);if(next<=p||next>end)break;p=next
    }
   };
-  const contentEnd=Math.min(b.length,12+report.declaredSize);
+  const contentEnd=Math.min(b.length,8+report.declaredSize);
   parse(12,contentEnd,'FaFX',0);
   const decoded=new TextDecoder('latin1').decode(b);
   const re=/(?:ADBE|CC|VC|BCC)[\w .:+()\/-]{2,100}/g;let m;
