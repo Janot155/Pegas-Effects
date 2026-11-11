@@ -58,15 +58,17 @@
   const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Could not create a retime cache canvas.');
   let cached=0,skipped=0;
   try{
-   video.load();
-   if(video.readyState<1)await waitEvent(video,'loadedmetadata');
+   const metadataReady=video.readyState>=1?Promise.resolve():waitEvent(video,'loadedmetadata');
+   video.load();await metadataReady;
    if(video.videoWidth<=0||video.videoHeight<=0)throw new Error('Source video has no decodable frames.');
    const scale=fit==='cover'?Math.max(width/video.videoWidth,height/video.videoHeight):Math.min(width/video.videoWidth,height/video.videoHeight);
    const dw=video.videoWidth*scale,dh=video.videoHeight*scale,dx=(width-dw)/2,dy=(height-dh)/2;
    for(let frame=first;frame<=last;frame++){
     if(has(clipId,frame,width,height)){cached++;continue}
     const time=frame/rate;
-    if(Math.abs((Number(video.currentTime)||0)-time)>0.0005||video.readyState<2){
+    if(video.readyState<2&&Math.abs((Number(video.currentTime)||0)-time)<=0.0005){
+     await waitEvent(video,'loadeddata');
+    }else if(Math.abs((Number(video.currentTime)||0)-time)>0.0005){
      const seek=waitEvent(video,'seeked');video.currentTime=time;await seek;
     }
     ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,width,height);ctx.drawImage(video,dx,dy,dw,dh);
