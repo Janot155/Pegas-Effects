@@ -7,7 +7,7 @@
  function interpName(k){
   const inType=String(k.inInterpolation||k.interpolation||'').toLowerCase(),outType=String(k.outInterpolation||k.interpolation||'').toLowerCase();
   if(inType==='hold'||outType==='hold')return'hold';if(inType==='bezier'||outType==='bezier'||k.inTemporalEase?.length||k.outTemporalEase?.length||k.temporalAutoBezier||k.temporalContinuous)return'bezier';
-  if(s==='linear')return'linear';return'linear'
+  if(inType==='linear'||outType==='linear')return'linear';return'linear'
  }
  function toPresetKey(k,duration){
   const t=Number.isFinite(+k.normalizedTime)?+k.normalizedTime:(duration>0?(+k.localTime||0)/duration:(+k.time||0));
