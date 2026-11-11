@@ -84,8 +84,9 @@
     if(await store(clipId,frame,width,height,canvas))cached++;else skipped++;
     if((frame-first)%4===0){onProgress?.({done:frame-first+1,total,cached,skipped});await new Promise(resolve=>setTimeout(resolve,0))}
    }
-   onProgress?.({done:total,total,cached,skipped});
-   return{total,cached,skipped,first,last,bytes};
+   const resident=[...entries.keys()].filter(k=>k.startsWith(clipId+'|')).length;
+   onProgress?.({done:total,total,cached:resident,written:cached,skipped});
+   return{total,cached:resident,written:cached,skipped,first,last,bytes};
   }finally{
    try{video.pause();video.removeAttribute('src');video.load()}catch{}
   }
