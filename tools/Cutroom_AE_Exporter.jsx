@@ -94,7 +94,7 @@
             propertyValueTypeName:String(safe(function(){return prop.propertyValueType;}, "unknown")),
             valueType:"unknown",value:null,defaultValue:null,
             canVaryOverTime:!!safe(function(){return prop.canVaryOverTime;},false),
-            enabled:!!safe(function(){return prop.enabled;},true),
+            enabled:(function(){var x=safe(function(){return prop.enabled;},null);return x===null||x===undefined?true:!!x;})(),
             expression:String(safe(function(){return prop.expression;}, "")),
             expressionEnabled:!!safe(function(){return prop.expressionEnabled;},false),
             expressionError:String(safe(function(){return prop.expressionError;}, "")),
