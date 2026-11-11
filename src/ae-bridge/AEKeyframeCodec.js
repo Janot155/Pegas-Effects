@@ -5,8 +5,8 @@
  const easeList=v=>Array.isArray(v)?v:[];
  const scalarEase=v=>{const x=easeList(v)[0]||{};return{speed:Number(x.speed)||0,influence:clamp(Number(x.influence)||0,0,100)}};
  function interpName(k){
-  const s=String(k.outInterpolation||k.interpolation||'').toLowerCase();
-  if(s==='hold')return'hold';if(s==='bezier'||k.inTemporalEase?.length||k.outTemporalEase?.length||k.temporalAutoBezier)return'bezier';
+  const inType=String(k.inInterpolation||k.interpolation||'').toLowerCase(),outType=String(k.outInterpolation||k.interpolation||'').toLowerCase();
+  if(inType==='hold'||outType==='hold')return'hold';if(inType==='bezier'||outType==='bezier'||k.inTemporalEase?.length||k.outTemporalEase?.length||k.temporalAutoBezier||k.temporalContinuous)return'bezier';
   if(s==='linear')return'linear';return'linear'
  }
  function toPresetKey(k,duration){
@@ -27,6 +27,7 @@
  function bezierEase(a,b,u){
   const ma=a?.meta?.ae,mb=b?.meta?.ae;
   if(!ma&&!mb)return null;
+  if(a?.e!=='bezier'&&b?.e!=='bezier'&&!ma?.temporalAutoBezier&&!mb?.temporalAutoBezier)return null;
   const dt=Math.max(1e-9,b.t-a.t),delta=b.v-a.v;
   if(Math.abs(delta)<1e-12)return a.v;
   const out=scalarEase(ma?.outTemporalEase),inn=scalarEase(mb?.inTemporalEase);
