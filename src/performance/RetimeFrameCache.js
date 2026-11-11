@@ -1,7 +1,7 @@
 /* Bounded, downscaled frame cache and optional retime pre-renderer. */
 (function(){
  'use strict';
- const entries=new Map();let bytes=0,budget=160*1024*1024,pending=0,enabled=true;
+ const entries=new Map(),pendingKeys=new Set(),clipVersions=new Map();let bytes=0,budget=160*1024*1024,pending=0,enabled=true,epoch=0;
  const MAX_DIMENSION=720;
  const key=(clip,frame,w,h)=>clip+'|'+frame+'|'+w+'x'+h;
  function drop(k,item){entries.delete(k);bytes=Math.max(0,bytes-(item.bytes||0));try{item.bitmap?.close?.()}catch{}}
@@ -20,6 +20,7 @@
   if(!enabled||typeof createImageBitmap!=='function'||pending>=4||w*h*4>budget*.7)return Promise.resolve(false);
   const k=key(clip,frame,w,h),existing=entries.get(k);
   if(existing){existing.used=performance.now();return Promise.resolve(true)}
+  if(pendingKeys.has(k))return Promise.resolve(false);
   let source=canvas;
   const factor=Math.min(1,MAX_DIMENSION/Math.max(w,h));
   if(factor<1){
@@ -27,18 +28,26 @@
    down.width=dw;down.height=dh;const dc=down.getContext('2d',{alpha:true});
    if(!dc)return Promise.resolve(false);dc.drawImage(canvas,0,0,dw,dh);source=down;
   }
-  pending++;
+  const startEpoch=epoch,clipVersion=clipVersions.get(clip)||0;
+  pending++;pendingKeys.add(k);
   return createImageBitmap(source).then(bitmap=>{
-   if(!enabled){bitmap.close?.();return false}
+   if(!enabled||epoch!==startEpoch||(clipVersions.get(clip)||0)!==clipVersion){bitmap.close?.();return false}
+   const existingNow=entries.get(k);
+   if(existingNow){bitmap.close?.();existingNow.used=performance.now();return true}
    const bytesNow=Math.max(4,bitmap.width*bitmap.height*4);
    entries.set(k,{bitmap,bytes:bytesNow,used:performance.now()});bytes+=bytesNow;trim();return entries.has(k)
-  }).catch(()=>false).finally(()=>pending=Math.max(0,pending-1))
+  }).catch(()=>false).finally(()=>{pendingKeys.delete(k);pending=Math.max(0,pending-1)})
  }
- function clearClip(clip){for(const [k,v] of entries)if(k.startsWith(clip+'|'))drop(k,v)}
- function clear(){for(const [k,v] of entries)drop(k,v);entries.clear();bytes=0}
+ function clearClip(clip){
+  clipVersions.set(clip,(clipVersions.get(clip)||0)+1);
+  for(const [k,v] of entries)if(k.startsWith(clip+'|'))drop(k,v)
+ }
+ function clear(){
+  epoch++;for(const [k,v] of entries)drop(k,v);entries.clear();bytes=0;pendingKeys.clear()
+ }
  function configure(opts={}){
   if(Number.isFinite(opts.budgetMB))budget=Math.max(16,Math.min(512,opts.budgetMB))*1024*1024;
-  if(typeof opts.enabled==='boolean')enabled=opts.enabled;
+  if(typeof opts.enabled==='boolean'&&opts.enabled!==enabled){enabled=opts.enabled;if(!enabled)clear()}
   trim()
  }
  const waitEvent=(video,event,timeout=12000)=>new Promise((resolve,reject)=>{
@@ -81,5 +90,5 @@
    try{video.pause();video.removeAttribute('src');video.load()}catch{}
   }
  }
- window.CutroomRetimeCache={get,has,store,clearClip,clear,configure,precacheVideo,stats:()=>({frames:entries.size,bytes,budget,enabled,pending})};
+ window.CutroomRetimeCache={get,has,store,clearClip,clear,configure,precacheVideo,stats:()=>({frames:entries.size,bytes,budget,enabled,pending,pendingFrames:pendingKeys.size})};
 })();
