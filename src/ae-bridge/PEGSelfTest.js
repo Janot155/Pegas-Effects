@@ -11,7 +11,13 @@
     source:{application:'Adobe After Effects',applicationVersion:'test'},
     composition:{name:'PEG Self Test',width:1920,height:1080,frameRate:30,duration:2,pixelAspect:1},
     layer:{name:'Layer A',index:1,inPoint:0,outPoint:2,duration:2,threeD:false},
-    transform:{position:{name:'Position',matchName:'ADBE Position',value:[970,520],keys:[]}},
+    transform:{
+     position:{nodeType:'property',name:'Position',matchName:'ADBE Position',value:[970,520],keys:[]},
+     scale:{nodeType:'property',name:'Scale',matchName:'ADBE Scale',value:[100,100],keys:[
+      {time:0,localTime:0,normalizedTime:0,value:[100,100],interpolation:'linear'},
+      {time:2,localTime:2,normalizedTime:1,value:[120,120],interpolation:'linear'}
+     ]}
+    },
     effects:[
      {name:'Gaussian Blur',matchName:'ADBE Gaussian Blur 2',enabled:true,properties:[
       {nodeType:'group',name:'Blur Settings',matchName:'ADBE Gaussian Blur-0001',children:[
@@ -33,8 +39,12 @@
    check('AE temporal ease metadata is retained',!!result.preset.kf['fx:0:r']?.[0]?.meta?.ae?.outTemporalEase?.length);
    check('Unknown plugin remains opaque',result.graph.opaque.some(x=>x.matchName==='Vendor Magic Glow'));
    check('Original full source tree remains attached',!!result.preset.compatibility.sourceGraph.effects[0].properties[0].children[0].matchName);
+   check('Layer transform property graph is preserved',result.graph.transform.some(x=>x.slot==='scale'&&x.property.value[0]===100));
+   check('Animated non-uniform AE scale is converted to native keyframes',result.preset.kf['tr.s']?.[1]?.v===120);
    const packed=root.PEG.Serializer.encode(result.graph),unpacked=root.PEG.Serializer.decode(packed);
    check('PEG serialization round trip preserves effects',unpacked.effects.length===2&&unpacked.effects[0].matchName==='ADBE Gaussian Blur 2');
+   const recomp=root.PEG.GraphCompiler.compile(unpacked,{FX,defs,projectWidth:1920,projectHeight:1080});
+   check('PEG graph can be re-imported without losing opaque plugins',recomp.graph.opaque.some(x=>x.matchName==='Vendor Magic Glow'));
    const ease=root.PEG.KeyframeCodec.evaluate(result.preset.kf['fx:0:r'][0],result.preset.kf['fx:0:r'][1],.5,x=>x);
    check('AE Bezier temporal evaluator returns a finite value',Number.isFinite(ease));
    const ffx=new Uint8Array(24),put=(at,str)=>{for(let i=0;i<4;i++)ffx[at+i]=str.charCodeAt(i)};
