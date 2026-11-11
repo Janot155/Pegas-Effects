@@ -727,19 +727,25 @@ function drawClip(ctx,c,t,W,H,k){
  const lt=qt(c,t-c.start),A=sc('A',W,H),a=A.getContext('2d');a.setTransform(1,0,0,1,0,0);a.clearRect(0,0,W,H);
  const media=P.media[c.media],retimed=!!(c.timeMap||c.rev||hasPT(c)),perfSettings=window.CutroomPerformanceConfig?.get?.()||{},smartPreview=!exporting&&playing&&perfSettings.effectPreviewMode==='smart';
  if(c.text)drawText(a,c,lt,W,H);else{
-  const e=elFor(c);if(!e)return;const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;
+  const e=elFor(c);if(!e)return;
   const srcFps=Math.max(1,media?.fps||P.fps||30),desiredTime=Number.isFinite(e._cutroomDesiredTime)?e._cutroomDesiredTime:(Number(e.currentTime)||0),desiredFrame=Math.round(desiredTime*srcFps);
+  // Check the retime cache before asking the HTMLVideoElement for metadata.
+  // A fully pre-cached reverse clip can render immediately even while the
+  // editor's own video decoder is still loading its first frame.
   const cached=retimed?window.CutroomRetimeCache?.get?.(c.id,desiredFrame,W,H):null;
   if(cached)a.drawImage(cached,0,0,W,H);
-  else if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){
-   const fallback=retimeFrames[c.id];if(retimed&&fallback&&fallback.width===W&&fallback.height===H)a.drawImage(fallback,0,0);else return;
-  }else{
-   const fit=P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh),x=(W-sw*fit)/2,y=(H-sh*fit)/2;
-   a.drawImage(e,x,y,sw*fit,sh*fit);
-   if(retimed&&!exporting){
-    window.CutroomRetimeCache?.store?.(c.id,desiredFrame,W,H,A);
-    const fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){retimeFrames[c.id]=document.createElement('canvas');retimeFrames[c.id].width=W;retimeFrames[c.id].height=H}
-    const fg=retimeFrames[c.id].getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)
+  else{
+   const sw=e.videoWidth||e.naturalWidth,sh=e.videoHeight||e.naturalHeight;if(!sw)return;
+   if(e.tagName==='VIDEO'&&(e.seeking||e._cutroomSeeking||e.readyState<2)){
+    const fallback=retimeFrames[c.id];if(retimed&&fallback&&fallback.width===W&&fallback.height===H)a.drawImage(fallback,0,0);else return;
+   }else{
+    const fit=P.fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh),x=(W-sw*fit)/2,y=(H-sh*fit)/2;
+    a.drawImage(e,x,y,sw*fit,sh*fit);
+    if(retimed&&!exporting){
+     window.CutroomRetimeCache?.store?.(c.id,desiredFrame,W,H,A);
+     const fc=retimeFrames[c.id];if(!fc||fc.width!==W||fc.height!==H){retimeFrames[c.id]=document.createElement('canvas');retimeFrames[c.id].width=W;retimeFrames[c.id].height=H}
+     const fg=retimeFrames[c.id].getContext('2d');fg.clearRect(0,0,W,H);fg.drawImage(A,0,0)
+    }
    }
   }
  }
