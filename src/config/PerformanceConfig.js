@@ -5,15 +5,15 @@
  const BASE={
   profile:'auto',
   previewFps:30,previewScale:.58,adaptiveQuality:true,minPreviewScale:.32,maxPreviewScale:.82,
-  previewCacheMB:72,gpuCacheMB:96,retimeCacheMB:96,
+  previewCacheMB:72,gpuCacheMB:96,retimeCacheMB:160,
   exportMaxPixels:16777216,exportMaxFps:60,exportBitrateCapMbps:80,
   exportYieldEveryFrames:2,exportProgressEvery:3,
   effectPreviewMode:'all',retimeCacheEnabled:true
  };
  const PRESETS={
-  performance:{previewFps:24,previewScale:.42,adaptiveQuality:true,minPreviewScale:.28,maxPreviewScale:.58,previewCacheMB:40,gpuCacheMB:48,retimeCacheMB:48,exportMaxPixels:12582912,exportMaxFps:60,exportBitrateCapMbps:48,exportYieldEveryFrames:1,exportProgressEvery:2,effectPreviewMode:'all',retimeCacheEnabled:true},
-  balanced:{previewFps:30,previewScale:.58,adaptiveQuality:true,minPreviewScale:.32,maxPreviewScale:.78,previewCacheMB:72,gpuCacheMB:96,retimeCacheMB:96,exportMaxPixels:16777216,exportMaxFps:60,exportBitrateCapMbps:80,exportYieldEveryFrames:2,exportProgressEvery:3,effectPreviewMode:'all',retimeCacheEnabled:true},
-  quality:{previewFps:60,previewScale:.82,adaptiveQuality:true,minPreviewScale:.5,maxPreviewScale:1,previewCacheMB:160,gpuCacheMB:160,retimeCacheMB:160,exportMaxPixels:25165824,exportMaxFps:120,exportBitrateCapMbps:120,exportYieldEveryFrames:4,exportProgressEvery:5,effectPreviewMode:'all',retimeCacheEnabled:true}
+  performance:{previewFps:24,previewScale:.42,adaptiveQuality:true,minPreviewScale:.28,maxPreviewScale:.58,previewCacheMB:40,gpuCacheMB:48,retimeCacheMB:80,exportMaxPixels:12582912,exportMaxFps:60,exportBitrateCapMbps:48,exportYieldEveryFrames:1,exportProgressEvery:2,effectPreviewMode:'all',retimeCacheEnabled:true},
+  balanced:{previewFps:30,previewScale:.58,adaptiveQuality:true,minPreviewScale:.32,maxPreviewScale:.78,previewCacheMB:72,gpuCacheMB:96,retimeCacheMB:160,exportMaxPixels:16777216,exportMaxFps:60,exportBitrateCapMbps:80,exportYieldEveryFrames:2,exportProgressEvery:3,effectPreviewMode:'all',retimeCacheEnabled:true},
+  quality:{previewFps:60,previewScale:.82,adaptiveQuality:true,minPreviewScale:.5,maxPreviewScale:1,previewCacheMB:160,gpuCacheMB:160,retimeCacheMB:288,exportMaxPixels:25165824,exportMaxFps:120,exportBitrateCapMbps:120,exportYieldEveryFrames:4,exportProgressEvery:5,effectPreviewMode:'all',retimeCacheEnabled:true}
  };
  const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number(n)||a));
  function device(){
@@ -24,8 +24,8 @@
  }
  function autoPreset(){
   const d=device();
-  if(d.tier==='high')return{...PRESETS.balanced,previewScale:.64,maxPreviewScale:.86,previewCacheMB:96,gpuCacheMB:112,retimeCacheMB:112};
-  if(d.tier==='medium')return{...PRESETS.balanced,previewScale:.52,maxPreviewScale:.72,previewCacheMB:64,gpuCacheMB:72,retimeCacheMB:72,previewFps:24};
+  if(d.tier==='high')return{...PRESETS.balanced,previewScale:.64,maxPreviewScale:.86,previewCacheMB:96,gpuCacheMB:112,retimeCacheMB:224};
+  if(d.tier==='medium')return{...PRESETS.balanced,previewScale:.52,maxPreviewScale:.72,previewCacheMB:64,gpuCacheMB:72,retimeCacheMB:128,previewFps:24};
   return{...PRESETS.performance,previewFps:20};
  }
  function clean(v){
@@ -49,12 +49,10 @@
  }
  function read(){
   let stored={};try{stored=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch{}
-  const merged={...BASE,...stored};
-  let values;
-  if(merged.profile==='auto')values={...autoPreset(),...merged};
-  else if(PRESETS[merged.profile])values={...PRESETS[merged.profile],...merged};
-  else values=merged;
-  return clean(values);
+  const profile=stored.profile||BASE.profile;
+  if(profile==='auto')return clean({...BASE,...autoPreset(),...stored,profile});
+  if(PRESETS[profile])return clean({...BASE,...PRESETS[profile],...stored,profile});
+  return clean({...BASE,...stored,profile});
  }
  let current=read();
  function save(patch){
