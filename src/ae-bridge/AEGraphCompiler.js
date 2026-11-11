@@ -57,7 +57,11 @@
   for(const [field,key] of Object.entries(rest)){
    const p=src[field]||src['ADBE '+field];if(!p)continue;
    const value=getComponent(p.value,key);if(value!==null)transform[key]=value;
-   const keys=(p.keys||[]).map(k=>K().toPresetKey(k,duration)).filter(k=>k&&Number.isFinite(k.v));
+   const keys=(p.keys||[]).map(k=>{
+    const t=Number.isFinite(+k.normalizedTime)?+k.normalizedTime:(Number.isFinite(+k.localTime)?+k.localTime/duration:(+k.time||0)/duration);
+    const v=getComponent(k.value,key);
+    return K().toPresetKey({...k,normalizedTime:t,value:v},duration)
+   }).filter(k=>k&&Number.isFinite(k.v));
    if(keys.length)kf['tr.'+key]=keys
   }
   const anchor=src.anchorPoint||src.anchor;
@@ -74,9 +78,22 @@
   graph.layer={...graph.layer,...S().clone(layer),duration};
   graph.provenance={...graph.provenance,sourceSchemaVersion:json.schemaVersion||1,sourceFormat:json.format||'legacy-cutroom-ae-export'};
   graph.effects=C().normalizeEffects(json.effects||[],duration);
+  graph.transform=Object.entries(json.transform||{}).map(([slot,node])=>({
+   slot,property:C().normalizeNode(node,duration,[])
+  }));
   const expressions=[],warnings=[],unsupported=[],rows=[],fx=[],kf={};
   const transformResult=convertTransform(json,graph,{projectWidth:options.projectWidth,projectHeight:options.projectHeight});
   Object.assign(kf,transformResult.kf);
+  const walkTransform=(node,slot)=>{
+   if(!node)return;
+   if(node.expressionEnabled&&node.expression){
+    const x=E().classify(node.expression);
+    expressions.push({effect:'Layer Transform',slot,path:node.name||slot,enabled:true,...x});
+    if(x.status==='opaque')warnings.push('Layer Transform · '+(node.name||slot)+': expression was preserved but is not executed by Pegas.');
+   }
+   (node.children||[]).forEach(child=>walkTransform(child,slot));
+  };
+  graph.transform.forEach(item=>walkTransform(item.property,item.slot));
   const rawEffects=json.effects||[];
   graph.effects.forEach((effect,index)=>{
    const source=rawEffects[index]||effect,rule=descriptor(effect,available);
