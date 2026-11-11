@@ -50,7 +50,7 @@
  function read(){
   let stored={};try{stored=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch{}
   const profile=stored.profile||BASE.profile;
-  if(profile==='auto')return clean({...BASE,...autoPreset(),...stored,profile});
+  if(profile==='auto')return clean({...BASE,...autoPreset(),profile:'auto'});
   if(PRESETS[profile])return clean({...BASE,...PRESETS[profile],...stored,profile});
   return clean({...BASE,...stored,profile});
  }
