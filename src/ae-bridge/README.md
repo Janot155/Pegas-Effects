@@ -42,6 +42,16 @@ For an unsupported plug-in, expression, 3D layer, mask/path, or specialized effe
 - The selected-layer JSON export describes one layer. The optional queued reference render is the whole composition, so it includes all visible layers in that composition.
 
 
+
+## Direct drop onto a Pegas clip
+
+- Drag an AE Bridge JSON export (`.json`) onto a video, image, or text clip. Pegas compiles it to the native preset schema and applies every supported native approximation to that exact target clip; the full PEG source graph remains saved in Presets.
+- Drag a native Cutroom preset JSON onto a clip to apply it to that clip as well.
+- Drag a raw `.ffx` file onto a clip or import it from Presets. Pegas preserves the original bytes in IndexedDB and automatically creates a structural `.peg.json` manifest containing the readable identifiers and chunk table. The manifest is exportable from the preset card.
+- A raw FFX manifest is **not** an extracted effect stack: the browser cannot safely infer proprietary FFX parameter values or keyframes from opaque binary chunks. For editable conversion, apply the FFX preset to a layer in After Effects, run the JSX exporter, then drag the generated AE Bridge JSON onto the target clip.
+- Use the trash action on an imported FFX card to delete both its original stored FFX binary and the associated PEG manifest.
+
+
 ## Pegas Effect Graph files
 
 After a JSON import has been converted, the saved preset card exposes **Export lossless PEG graph**. The resulting `.peg.json` file contains the normalized PEG document rather than only the editable native effect approximations. Importing that file again recompiles the same graph and retains opaque effects and expression source.
