@@ -49,6 +49,13 @@ button.on{border-color:var(--ac);color:var(--ac)}input[type=range]{padding:0;acc
 <script src="./src/performance/RuntimeProfile.js"></script>
 <script src="./src/audio/EmbeddedVideoAudio.js"></script>
 <script src="./src/retime/GraphEditor.js"></script>
+<script src="./src/ae-bridge/PEGSchema.js"></script>
+<script src="./src/ae-bridge/AEPropertyCodec.js"></script>
+<script src="./src/ae-bridge/AEKeyframeCodec.js"></script>
+<script src="./src/ae-bridge/AEExpressionCodec.js"></script>
+<script src="./src/ae-bridge/AEEffectRegistry.js"></script>
+<script src="./src/ae-bridge/FFXChunkReader.js"></script>
+<script src="./src/ae-bridge/AEGraphCompiler.js"></script>
 <script>
 'use strict';
 const $=(s,e=document)=>e.querySelector(s),el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
@@ -61,7 +68,7 @@ async function save(filename,data){let d=null;try{d=await window.claude?.use('do
 /* ---------- keyframe engine ---------- */
 const bz=(a,b,c,d)=>x=>{let lo=0,hi=1,t=x;for(let i=0;i<22;i++){t=(lo+hi)/2;(3*(1-t)**2*t*a+3*(1-t)*t*t*c+t**3)<x?lo=t:hi=t}return 3*(1-t)**2*t*b+3*(1-t)*t*t*d+t**3};
 const EASE={linear:x=>x,hold:x=>x>=1?1:0,in:x=>x*x,out:x=>1-(1-x)**2,inout:x=>x<.5?2*x*x:1-(-2*x+2)**2/2,bezier:bz(.68,-.3,.32,1.3)};
-const val=(c,key,t,d)=>{const k=c.kf[key];if(!k||!k.length)return d;if(t<=k[0].t)return k[0].v;const L=k[k.length-1];if(t>=L.t)return L.v;let i=0;while(k[i+1]&&k[i+1].t<t)i++;const a=k[i],b=k[i+1];if(!b)return L.v;if(a.e==='hold')return a.v;const span=Math.max(1e-9,b.t-a.t),u=clamp((t-a.t)/span,0,1),ease=EASE[a.e]||EASE.linear;return a.v+(b.v-a.v)*ease(u)};
+const val=(c,key,t,d)=>{const k=c.kf[key];if(!k||!k.length)return d;if(t<=k[0].t)return k[0].v;const L=k[k.length-1];if(t>=L.t)return L.v;let i=0;while(k[i+1]&&k[i+1].t<t)i++;const a=k[i],b=k[i+1];if(!b)return L.v;if(a.e==='hold')return a.v;const span=Math.max(1e-9,b.t-a.t),u=clamp((t-a.t)/span,0,1),ease=EASE[a.e]||EASE.linear;return window.PEG?.KeyframeCodec?.evaluate?.(a,b,u,ease)??(a.v+(b.v-a.v)*ease(u))};
 const base=(c,key)=>{if(key=='vol')return c.vol;if(key.startsWith('tr.'))return c.tr[key.slice(3)];const[,id,k]=key.split(':');return c.fx.find(f=>f.id==id).p[k]};
 const setBase=(c,key,v)=>{if(key=='vol')c.vol=v;else if(key.startsWith('tr.'))c.tr[key.slice(3)]=v;else{const[,id,k]=key.split(':');c.fx.find(f=>f.id==id).p[k]=v}};
 const get=(c,key,t)=>val(c,key,t,base(c,key));
@@ -512,18 +519,18 @@ function presetReport(title,rows,warnings,unsupported,apply){
 // FFX uses Adobe's proprietary RIFX/FaFX serialization. We only inspect the
 // container and recognizable identifiers; we never fabricate AE parameter values.
 async function ffx(name,b){
- const bytes=b instanceof Uint8Array?b:new Uint8Array(b),latin=new TextDecoder('latin1').decode(bytes),isContainer=latin.slice(0,4)==='RIFX'&&latin.slice(8,12)==='FaFX';
+ const bytes=b instanceof Uint8Array?b:new Uint8Array(b),latin=new TextDecoder('latin1').decode(bytes),isContainer=latin.slice(0,4)==='RIFX'&&latin.slice(8,12)==='FaFX',ffxStructure=window.PEG?.FFXChunkReader?.inspect?.(bytes)||null;
  const le=new Uint8Array(bytes.length-(bytes.length%2));for(let i=0;i<le.length;i+=2){le[i]=bytes[i+1];le[i+1]=bytes[i]}
  const decoded=[latin,new TextDecoder('utf-16le').decode(bytes),new TextDecoder('utf-16le').decode(le)],hints=[];
  for(const text of decoded){const re=/(?:ADBE|CC|VC|BCC)[\w .:+()\/-]{2,100}/g;let m;while((m=re.exec(text))){const raw=m[0].replace(/[^\x20-\x7e].*$/,'').replace(/\s+/g,' ').trim();if(raw.length>3&&!hints.some(x=>x.name===raw&&x.offset===m.index))hints.push({name:raw,offset:m.index})}}
  hints.sort((a,b)=>a.offset-b.offset);
  const mappedHints=hints.map(h=>{const m=typeof FFXMAP!=='undefined'?FFXMAP.find(([re])=>re.test(h.name)):null;return{...h,possibleCutroomEffect:m?m[1]:null,classification:'identifier-hint-only'}});
- const id=uid(),key='ffx-source:'+id,pr={id,format:'cutroom-preset',version:3,name:String(name||'Imported FFX').replace(/\.ffx$/i,''),cat:'AE source (needs conversion)',fx:[],kf:{},kfRel:true,timeMap:null,sourceOnly:true,folder:'After Effects source files',description:'Original Adobe .ffx bytes preserved. This file has not been converted into executable Cutroom effects.',compatibility:{source:'Adobe .ffx',level:'source-only',containerSignatureValid:isContainer,rawBytes:bytes.length,originalFileKey:key,identifierHints:mappedHints,unsupportedReason:'The internal FFX property/keyframe stream is proprietary and is not safely decoded by this browser importer. No values or keyframes were guessed.'}};
+ const id=uid(),key='ffx-source:'+id,pr={id,format:'cutroom-preset',version:3,name:String(name||'Imported FFX').replace(/\.ffx$/i,''),cat:'AE source (needs conversion)',fx:[],kf:{},kfRel:true,timeMap:null,sourceOnly:true,folder:'After Effects source files',description:'Original Adobe .ffx bytes preserved. This file has not been converted into executable Cutroom effects.',compatibility:{source:'Adobe .ffx',level:'source-only',containerSignatureValid:isContainer,rawBytes:bytes.length,originalFileKey:key,identifierHints:mappedHints,ffxStructure,unsupportedReason:'The FFX container and chunk structure can be inspected, but the semantic Adobe effect/property stream is not interpreted without the After Effects host exporter. No values or keyframes were guessed.'}};
  try{await idb('media','put',new Blob([bytes],{type:'application/octet-stream'}),key);await idb('presets','put',pr,id);await loadCustom()}catch(e){toast('Could not preserve the original FFX file: '+e.message,1);return}
  const rows=mappedHints.map(h=>({source:h.name,target:h.possibleCutroomEffect&&FX[h.possibleCutroomEffect]?FX[h.possibleCutroomEffect].n:'Unmapped identifier',kind:'Identifier hint only — no parameters or keyframes extracted'}));
- const warnings=[isContainer?'Valid RIFX/FaFX container signature found. This confirms the container only; it does not expose effect values.':'The file name ends in .ffx, but the expected RIFX/FaFX container signature was not found.','The original .ffx bytes have been saved unchanged in Cutroom. No generic effect objects were created, because that would falsely imply that Adobe settings had been recovered.','To convert its settings, open the preset in After Effects, apply it to a layer, run the included Cutroom_AE_Exporter.jsx on that selected layer, then import the generated Cutroom AE JSON file here.','Expressions are exported as source text for inspection; Cutroom does not execute arbitrary After Effects expressions. Unsupported plug-ins remain listed in the conversion report.'];
+ const warnings=[isContainer?'Valid RIFX/FaFX container signature found. '+(ffxStructure?.chunks?.length||0)+' structural chunk(s) inspected; this does not by itself expose effect values.':'The file name ends in .ffx, but the expected RIFX/FaFX container signature was not found.','The original .ffx bytes have been saved unchanged in Cutroom. This importer does not invent native effect parameters from opaque binary payloads.','For semantic conversion, open the preset in After Effects, apply it to a layer, run tools/Cutroom_AE_Exporter.jsx on that selected layer, then import the generated JSON. The exporter reads the real AE property tree and keyframe API.','PEG preserves expressions and their source text. It classifies a small safe subset but does not execute arbitrary After Effects expressions or plug-in code. Unsupported effects remain preserved as opaque graph nodes.'];
  if(!mappedHints.length)warnings.push('No readable effect identifiers were found in the binary payload. The file is still preserved for later conversion.');
- const body=el('div',null,`<h3>After Effects preset source: ${esc(name)}</h3><p class="hint">The original file is safely stored, but it has not been converted into a working effect chain.</p><p><b>${bytes.length.toLocaleString()} bytes preserved</b> · ${mappedHints.length} readable identifier hint(s) · 0 guessed effects</p><h4>Identifier hints</h4>${rows.map(x=>`<div>${esc(x.source)} → <b>${esc(x.target)}</b> <small style="color:var(--mu)">(${esc(x.kind)})</small></div>`).join('')||'<p class="hint">No readable identifiers found.</p>'}<h4>Conversion guidance</h4>${warnings.map(x=>`<p class="hint">${esc(x)}</p>`).join('')}`);
+ const body=el('div',null,`<h3>After Effects preset source: ${esc(name)}</h3><p class="hint">The original file is safely stored. The FFX chunk table is inspected, but the Adobe host is needed to resolve semantic effect values safely.</p><p><b>${bytes.length.toLocaleString()} bytes preserved</b> · ${ffxStructure?.chunks?.length||0} structural chunk(s) · ${mappedHints.length} readable identifier hint(s) · 0 guessed effects</p><h4>Identifier hints</h4>${rows.map(x=>`<div>${esc(x.source)} → <b>${esc(x.target)}</b> <small style="color:var(--mu)">(${esc(x.kind)})</small></div>`).join('')||'<p class="hint">No readable identifiers found.</p>'}<h4>Conversion guidance</h4>${warnings.map(x=>`<p class="hint">${esc(x)}</p>`).join('')}`);
  modal(body,[['Close'],['Download original .ffx',async()=>{const blob=await idb('media','get',key);if(blob)await save(name.toLowerCase().endsWith('.ffx')?name:name+'.ffx',blob);else toast('The original FFX bytes are not present in this browser storage.',1)}]]);
 }
 function normalizeKF(arr){if(!Array.isArray(arr))return[];return arr.map(a=>Array.isArray(a)?{t:+a[0],v:+a[1],e:['linear','hold','in','out','inout','bezier'].includes(a[2])?a[2]:'linear',...(a[3]&&typeof a[3]=='object'?{handle:a[3]}:{})}:a&&typeof a=='object'?{...a,t:+a.t,v:+a.v,e:['linear','hold','in','out','inout','bezier'].includes(a.e)?a.e:'linear'}:null).filter(a=>a&&Number.isFinite(a.t)&&Number.isFinite(a.v)).sort((a,b)=>a.t-b.t)}
@@ -571,28 +578,21 @@ function aeParam(type,name){const n=String(name||'').toLowerCase().replace(/[^a-
 function aeConvertValue(type,param,value){let n=aeNumeric(value);if(n===null)return null;if(type==='glow'&&param==='amt'&&n>=0&&n<=10)n*=100;if(type==='radblur'&&param==='ang'&&n>60)n=n*.6;if(type==='dirblur'&&param==='len'&&n>400)n=n*.4;if(type==='pixelate'&&param==='size'&&n>100)n=1000/n;if(type==='wave'&&param==='spd'&&Math.abs(n)<=2)n*=10;return n}
 function aeInterp(k){const x=String(k.interpolation||'').toLowerCase();if(x==='bezier'||k.inEase||k.outEase)return'bezier';if(x==='hold')return'hold';return'linear'}
 async function importAEExport(j,fileName){
- const fx=[],kf={},rows=[],unsupported=[],warnings=[],rawEffects=Array.isArray(j.effects)?j.effects:[];
- for(const source of rawEffects){const fullName=`${source.matchName||''} ${source.name||''}`.trim(),rule=AE_EFFECT_MAP.find(([re])=>re.test(fullName));if(!rule){unsupported.push(`${fullName||'Unknown effect'} — raw properties retained`);continue}
-  const type=rule[1],params=defs(type),index=fx.length,sourceProps=Array.isArray(source.properties)?source.properties:[],mappedProps=[];
-  for(const prop of sourceProps){const key=aeParam(type,prop.name)||aeParam(type,prop.matchName);if(!key||!Object.prototype.hasOwnProperty.call(params,key))continue;
-   const rawKeys=Array.isArray(prop.keys)?prop.keys:[],staticVal=aeConvertValue(type,key,prop.value);if(staticVal!==null){const spec=FX[type].p[key];params[key]=clamp(staticVal,spec[1],spec[2]);mappedProps.push(`${prop.name} → ${key}`)}
-   if(rawKeys.length){const converted=rawKeys.map(k=>({t:+k.t,v:aeConvertValue(type,key,k.value),e:aeInterp(k),sourceInterpolation:k.interpolation||'unknown',sourceEase:{in:k.inEase||null,out:k.outEase||null},sourceAutoBezier:!!k.temporalAutoBezier,sourceContinuous:!!k.temporalContinuous})).filter(k=>Number.isFinite(k.t)&&Number.isFinite(k.v));if(converted.length){mappedProps.push(`${prop.name} keyframes → ${key}`);kf[`fx:${index}:${key}`]=converted.map(({sourceInterpolation,sourceEase,sourceAutoBezier,sourceContinuous,...v})=>({...v,meta:{sourceInterpolation,sourceEase,sourceAutoBezier,sourceContinuous}}));params[key]=clamp(converted[0].v,FX[type].p[key][1],FX[type].p[key][2]);}}
-  }
-  if(mappedProps.length){fx.push({t:type,p:params,off:source.enabled===false,meta:{sourceEffectName:fullName,conversion:'mapped native approximation',compatibility:'converted',originalValuesRecovered:true,sourceProperties:sourceProps,unmappedProperties:sourceProps.filter(p=>!aeParam(type,p.name)&&!aeParam(type,p.matchName)).map(p=>p.name||p.matchName)}});rows.push({source:fullName,target:FX[type].n,kind:`${mappedProps.length} parameter(s) mapped from actual AE values into a native approximation`})}
-  else{unsupported.push(`${fullName} — effect recognised, but no supported parameter value/keyframe was mapped; it was not inserted with fabricated defaults.`);warnings.push(`${fullName}: no supported parameter values were mapped, so no executable Cutroom effect was fabricated. Original properties are retained in sourceData.`)}
-  if(sourceProps.some(p=>p.expressionEnabled&&p.expression))warnings.push(`${fullName}: expressions are preserved in sourceData but are not executed by Cutroom.`);
-  if(sourceProps.some(p=>(p.keys||[]).some(k=>String(k.interpolation).toLowerCase()==='bezier'||k.inEase||k.outEase)))warnings.push(`${fullName}: AE Bezier/ease data is retained as metadata; Cutroom uses an approximate native curve rather than Adobe's exact temporal handles.`);
- }
- const transform={},comp=j.composition||{},srcTr=j.transform||{},layer=j.layer||{};
- function convertTransformPart(prop,key,offset){if(!prop)return;const conv=v=>{if(key==='x'||key==='y'){const n=Array.isArray(v)?aeNumeric(v[key==='x'?0:1]):aeNumeric(v);return n===null?null:n-(key==='x'?(+comp.width||P.w)/2:(+comp.height||P.h)/2)}if(key==='s'&&Array.isArray(v)){const a=aeNumeric(v[0]),b=aeNumeric(v[1]);return a===null?b:b===null?a:(a+b)/2}return aeNumeric(v)};const v=conv(prop.value);if(v!==null)transform[key]=v;
-  if(Array.isArray(prop.keys)&&prop.keys.length){const kk=prop.keys.map(k=>({t:+k.t,v:conv(k.value),e:aeInterp(k)})).filter(k=>Number.isFinite(k.t)&&Number.isFinite(k.v));if(kk.length)kf[`tr.${key}`]=kk}}
- convertTransformPart(srcTr.position,'x');convertTransformPart(srcTr.position,'y');convertTransformPart(srcTr.scale,'s');convertTransformPart(srcTr.rotation,'r');convertTransformPart(srcTr.opacity,'o');
- if(srcTr.anchorPoint)warnings.push('Anchor Point was preserved in sourceData but Cutroom has no native anchor-point transform control.');if(layer.threeDLayer)warnings.push('The source layer is 3D; Cutroom is a 2D editor, so 3D camera/depth behavior cannot be reproduced.');
- if(!fx.length&&!Object.keys(transform).length&&!Object.keys(kf).length){presetReport(`After Effects layer export: ${fileName}`,[],['No supported AE effects or transform properties could be converted.'],unsupported,null);return}
- const pr={format:'cutroom-preset',version:3,name:String(layer.name||fileName||'After Effects export'),cat:'After Effects converted',fx,kf,kfRel:true,timeMap:null,retimeSettings:null,transform,folder:'After Effects',description:'Converted from an After Effects selected-layer JSON export.',compatibility:{source:'Cutroom After Effects Exporter',level:'converted-native-approximations',sourceComposition:comp,sourceLayer:layer,unmappedEffects:unsupported,sourceData:j}};
- pr.id=uid();await idb('presets','put',pr,pr.id);await loadCustom();
- if(unsupported.length)warnings.push(`${unsupported.length} unsupported or unmapped effect(s) preserved in sourceData; they are not rendered by Cutroom.`);
- presetReport(`After Effects conversion: ${pr.name}`,rows,warnings,unsupported,()=>applyPreset(pr));
+ try{
+  const compiler=window.PEG?.GraphCompiler;
+  if(!compiler)throw new Error('Pegas Effect Graph translator modules did not load.');
+  const result=compiler.compile(j,{FX,defs,projectWidth:P.w,projectHeight:P.h});
+  const pr=result.preset;pr.id=uid();
+  pr.description+=' Source: '+String(fileName||'AE export')+'.';
+  await idb('presets','put',pr,pr.id);await loadCustom();
+  const reportWarnings=[...result.warnings];
+  reportWarnings.push('PEG keeps the full After Effects property/effect graph, raw match names, values, keyframes, interpolation/ease metadata and expressions. Native Pegas effects are approximations, not guaranteed pixel-identical to Adobe effects.');
+  reportWarnings.push('For pixel-identical output of unsupported effects/plugins, use the optional exact-composition render queued by the After Effects exporter, then import that rendered video into Pegas.');
+  if(result.counts.expressions)reportWarnings.push(result.counts.expressions+' expression(s) were classified and preserved. PEG does not execute arbitrary imported JavaScript or After Effects host APIs.');
+  if(result.counts.opaqueEffects)reportWarnings.push(result.counts.opaqueEffects+' effect(s) are preserved as opaque graph nodes and will not be silently replaced by different effects.');
+  presetReport('Pegas Effect Graph conversion: '+pr.name,result.rows,reportWarnings,result.unsupported,pr.sourceOnly?null:()=>applyPreset(pr));
+  toast('PEG import saved · '+result.counts.convertedEffects+' native approximation(s) · '+result.counts.opaqueEffects+' preserved opaque effect(s).');
+ }catch(err){toast('After Effects translation failed: '+(err.message||err),1)}
 }
 async function importPreset(file){
  const b=new Uint8Array(await file.arrayBuffer());
