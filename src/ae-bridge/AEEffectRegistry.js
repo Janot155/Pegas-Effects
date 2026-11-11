@@ -12,14 +12,14 @@
   {id:'wave-warp',match:[/^ADBE Wave Warp$/i],name:[/Wave Warp/i],target:'wave',params:{amp:['Wave Height','Height','Amplitude'],len:['Wave Width','Width','Wavelength'],spd:['Wave Speed','Speed']},convert:{spd:v=>Math.abs(v)<=2?v*10:v}},
   {id:'posterize-time',match:[/^ADBE Posterize Time$/i],name:[/Posterize Time/i],target:'ptime',params:{fps:['Frame Rate','Framerate']}},
   {id:'noise',match:[/^ADBE Noise$/i],name:[/^Noise$/i,/Add Grain|Grain/i],target:'grain',params:{amt:['Amount of Noise','Amount','Noise Amount']}},
-  {id:'mosaic',match:[/^ADBE Mosaic$/i],name:[/Mosaic|Pixelate/i],target:'pixelate',params:{size:['Horizontal Blocks','Block Size','Size']}},
+  {id:'mosaic',match:[/^ADBE Mosaic$/i],name:[/Mosaic/i],target:'pixelate',params:{size:['Block Size','Pixel Size']}},
   {id:'drop-shadow',match:[/^ADBE Drop Shadow$/i],name:[/Drop Shadow/i],target:'shadow',params:{x:['Distance','Offset'],b:['Softness','Blur'],op:['Opacity']}},
   {id:'brightness-contrast',match:[/^ADBE Brightness & Contrast 2?$/i],name:[/Brightness & Contrast/i],target:'color',params:{bright:['Brightness'],contrast:['Contrast']}},
   {id:'hue-saturation',match:[/^ADBE HUE SATURATION$/i],name:[/Hue\/Saturation/i],target:'hueshift',params:{hue:['Master Hue','Hue'],sat:['Master Saturation','Saturation'],bright:['Lightness','Brightness']}},
-  {id:'exposure',match:[/^ADBE Exposure2?$/i],name:[/^Exposure$/i],target:'color',params:{exp:['Exposure'],bright:['Offset'],contrast:['Gamma Correction']}},
-  {id:'cc-light-sweep',match:[/^CC Light Sweep$/i],name:[/CC Light Sweep|Light Sweep/i],target:'ccsweep',params:{pos:['Center','Position','Position X'],width:['Width'],ang:['Direction','Angle'],amt:['Intensity','Amount']}},
+  {id:'exposure',match:[/^ADBE Exposure2?$/i],name:[/^Exposure$/i],target:'color',params:{exp:['Exposure'],bright:['Offset']}},
+  {id:'cc-light-sweep',match:[/^CC Light Sweep$/i],name:[/CC Light Sweep|Light Sweep/i],target:'ccsweep',params:{width:['Width'],ang:['Direction','Angle'],amt:['Intensity','Amount']}},
   {id:'cc-light-rays',match:[/^CC Light Rays$/i],name:[/CC Light Rays|Light Rays/i],target:'ccrays',params:{x:['Center X','X Position'],y:['Center Y','Y Position'],len:['Ray Length','Length'],amt:['Intensity','Amount']}},
-  {id:'cc-mirror',match:[/^CC Mirror$/i],name:[/CC Mirror|Mirror/i],target:'ccmirror',params:{pos:['Reflection Center','Center','Position']}},
+  {id:'cc-mirror',match:[/^CC Mirror$/i],name:[/CC Mirror/i],target:'ccmirror',params:{}},
   {id:'cc-kaleida',match:[/^CC Kaleida$/i,/^CC Kaleidoscope$/i],name:[/CC Kaleida|Kaleidoscope/i],target:'cckal',params:{n:['Segments','Number Of Segments'],rot:['Rotation'],zoom:['Size','Zoom'],cx:['Center X'],cy:['Center Y']}},
   {id:'cc-repetile',match:[/^CC RepeTile$/i],name:[/CC RepeTile|Repetile/i],target:'ccrep',params:{tiles:['Tiles'],mirror:['Mirror Edges']}},
   {id:'cc-lens',match:[/^CC Lens$/i],name:[/CC Lens/i],target:'cclens',params:{x:['Center X'],y:['Center Y'],size:['Size'],mag:['Magnification']}},
@@ -27,7 +27,6 @@
   {id:'vignette',match:[],name:[/Vignette/i],target:'vignette',params:{amt:['Amount','Intensity']}},
   {id:'scanlines',match:[],name:[/Scan Lines|Scanlines/i],target:'scanlines',params:{amt:['Amount','Opacity'],spacing:['Spacing']}},
   {id:'lens-flare',match:[],name:[/Lens Flare/i],target:'lensflare',params:{x:['Center X'],y:['Center Y'],size:['Lens Size'],amt:['Brightness','Intensity']}},
-  {id:'tint',match:[/^ADBE Tint$/i],name:[/^Tint$/i],target:'monochrome',params:{amt:['Amount To Tint']}}
  ];
  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
  function resolve(effect,available){
