@@ -593,7 +593,7 @@ function normalizePegasAEExport(j,fileName){
   if(value!==null||keys.length)out.push({name:String(node.name||nextPath||'Property'),matchName:String(node.matchName||''),value,keys});
  };
  for(const root of roots){const properties=[];flatten(root,properties,'');flatByEffect.push({name:String(root.name||'Unknown effect'),matchName:String(root.matchName||''),enabled:root.enabled!==false,stackIndex:Number.isFinite(+root.propertyIndex)?+root.propertyIndex-1:flatByEffect.length,properties})}
- const minTime=allTimes.length?Math.min(...allTimes):0,maxTime=allTimes.length?Math.max(...allTimes):1,span=Math.max(.000001,maxTime-minTime);
+ let minTime=0,maxTime=1;if(allTimes.length){minTime=allTimes[0];maxTime=allTimes[0];for(let i=1;i<allTimes.length;i++){if(allTimes[i]<minTime)minTime=allTimes[i];if(allTimes[i]>maxTime)maxTime=allTimes[i]}}const span=Math.max(.000001,maxTime-minTime);
  const effects=flatByEffect.map(effect=>({...effect,properties:effect.properties.map(prop=>({...prop,keys:prop.keys.map(k=>({t:clamp((k.time-minTime)/span,0,1),value:k.value,interpolation:k.interpolation,inEase:k.inEase,outEase:k.outEase,temporalAutoBezier:k.temporalAutoBezier,temporalContinuous:k.temporalContinuous}))}))})).filter(effect=>effect.properties.length);
  const comp=source.composition&&typeof source.composition==='object'?source.composition:{name:String(source.composition||'')};
  return{
