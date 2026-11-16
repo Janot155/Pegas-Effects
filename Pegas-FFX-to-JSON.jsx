@@ -1,222 +1,282 @@
 /*
- * Pegas Effects — After Effects FFX → JSON exporter
+ * Pegas Effects — After Effects FFX bridge
  * Run inside Adobe After Effects:
  *   File > Scripts > Run Script File...
  *
- * Usage:
- *   1. Select exactly one layer in an active composition.
- *   2. Run this script and choose an .ffx preset.
- *   3. The script applies the preset to the selected layer, reads the
- *      resulting supported properties/keyframes, and writes JSON.
+ * Select one target layer in an active composition, run this script, and choose
+ * an .ffx preset. After Effects applies and interprets the preset; this script
+ * exports the changed/new effects and readable parameters into the JSON schema
+ * that Pegas Effects imports directly.
  *
- * Important:
- *   .ffx is an Adobe proprietary preset format. This script uses After Effects
- *   itself to interpret it; it does not pretend to decode undocumented binary
- *   bytes in a browser. Expressions, plug-in internals and custom UI state
- *   cannot always be represented by a portable JSON preset.
+ * FFX is a proprietary Adobe format. This bridge deliberately uses AE's own
+ * scripting API instead of pretending to decode undocumented binary data.
  */
 (function () {
+    function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+    function str(v) { try { return String(v); } catch (e) { return ""; } }
+    function finite(v) { return typeof v === "number" && isFinite(v); }
     function quote(s) {
-        return '"' + String(s).replace(/\\/g, '\\\\')
-            .replace(/"/g, '\\"').replace(/\r/g, '\\r')
-            .replace(/\n/g, '\\n').replace(/\t/g, '\\t') + '"';
+        return '"' + str(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+            .replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t")
+            .replace(/\u0008/g, "\\b").replace(/\u000c/g, "\\f") + '"';
     }
-
     function json(v) {
-        if (v === null || v === undefined) return 'null';
-        if (typeof v === 'string') return quote(v);
-        if (typeof v === 'number') return isFinite(v) ? String(v) : 'null';
-        if (typeof v === 'boolean') return v ? 'true' : 'false';
+        if (v === null || v === undefined) return "null";
+        if (typeof v === "string") return quote(v);
+        if (typeof v === "number") return finite(v) ? String(v) : "null";
+        if (typeof v === "boolean") return v ? "true" : "false";
         if (v instanceof Array) {
             var a = [];
             for (var i = 0; i < v.length; i++) a.push(json(v[i]));
-            return '[' + a.join(',') + ']';
+            return "[" + a.join(",") + "]";
         }
-        var parts = [];
-        for (var k in v) if (v.hasOwnProperty(k))
-            parts.push(quote(k) + ':' + json(v[k]));
-        return '{' + parts.join(',') + '}';
+        var fields = [];
+        for (var k in v) if (own(v, k) && typeof v[k] !== "function")
+            fields.push(quote(k) + ":" + json(v[k]));
+        return "{" + fields.join(",") + "}";
     }
-
+    function cleanValue(v) {
+        if (v === null || v === undefined) return null;
+        if (typeof v === "number") return finite(v) ? v : null;
+        if (typeof v === "string" || typeof v === "boolean") return v;
+        if (v instanceof Array) {
+            var a = [];
+            for (var i = 0; i < v.length; i++) a.push(cleanValue(v[i]));
+            return a;
+        }
+        try {
+            if (v.text !== undefined) return { text: str(v.text) };
+        } catch (e1) {}
+        return { sourceType: str(v.constructor && v.constructor.name || "object"), summary: str(v) };
+    }
     function valueOf(p) {
         try {
-            if (p.propertyValueType === PropertyValueType.NO_VALUE) return null;
-            var v = p.value;
-            if (v instanceof Array) {
-                var a = [];
-                for (var i = 0; i < v.length; i++) a.push(v[i]);
-                return a;
-            }
-            if (typeof v === 'number' || typeof v === 'string' ||
-                typeof v === 'boolean') return v;
-            return String(v);
-        } catch (_) { return null; }
+            if (!p || p.propertyValueType === PropertyValueType.NO_VALUE) return null;
+            return cleanValue(p.value);
+        } catch (e) { return null; }
     }
-
-    function easeOf(e) {
+    function easeArray(items) {
+        var out = [];
         try {
-            return {
-                speed: e.speed,
-                influence: e.influence
-            };
-        } catch (_) { return null; }
-    }
-
-    function serializeProperty(p, path) {
-        var out = {
-            name: p.name,
-            matchName: p.matchName,
-            propertyIndex: p.propertyIndex,
-            propertyType: String(p.propertyType),
-            valueType: String(p.propertyValueType),
-            enabled: (typeof p.enabled === 'boolean') ? p.enabled : null,
-            canSetExpression: !!p.canSetExpression,
-            expression: (function () {
-                try { return p.expression || ''; } catch (_) { return ''; }
-            })(),
-            path: path.slice(0)
-        };
-
-        if (p.propertyType === PropertyType.NAMED_GROUP ||
-            p.propertyType === PropertyType.INDEXED_GROUP) {
-            out.children = [];
-            for (var i = 1; i <= p.numProperties; i++) {
-                var child = p.property(i);
-                out.children.push(serializeProperty(child, path.concat([{
-                    name: child.name,
-                    matchName: child.matchName,
-                    index: i
-                }])));
+            for (var i = 0; i < items.length; i++) {
+                out.push({ speed: Number(items[i].speed), influence: Number(items[i].influence) });
             }
-            return out;
-        }
-
-        out.staticValue = valueOf(p);
-        out.keyframes = [];
-        try {
-            for (var k = 1; k <= p.numKeys; k++) {
-                var key = {
-                    time: p.keyTime(k),
-                    value: valueOf({ value: p.keyValue(k),
-                        propertyValueType: p.propertyValueType }),
-                    inInterpolation: String(p.keyInInterpolationType(k)),
-                    outInterpolation: String(p.keyOutInterpolationType(k)),
-                    inTemporalEase: [],
-                    outTemporalEase: [],
-                    temporalContinuous: null,
-                    temporalAutoBezier: null,
-                    roving: null
-                };
-                try {
-                    var ie = p.keyInTemporalEase(k);
-                    var oe = p.keyOutTemporalEase(k);
-                    for (var q = 0; q < ie.length; q++) key.inTemporalEase.push(easeOf(ie[q]));
-                    for (var z = 0; z < oe.length; z++) key.outTemporalEase.push(easeOf(oe[z]));
-                } catch (_) {}
-                try { key.temporalContinuous = p.keyTemporalContinuous(k); } catch (_) {}
-                try { key.temporalAutoBezier = p.keyTemporalAutoBezier(k); } catch (_) {}
-                try { key.roving = p.keyRoving(k); } catch (_) {}
-                out.keyframes.push(key);
-            }
-        } catch (_) {}
+        } catch (e) {}
         return out;
     }
-
-    function findPresetEffects(layer) {
-        var effects = [];
+    function normalizedTime(time, layer) {
+        var span = Math.max(0.000001, Number(layer.outPoint) - Number(layer.inPoint));
+        return (Number(time) - Number(layer.inPoint)) / span;
+    }
+    function interpolation(p, index) {
+        var a = "", b = "";
+        try { a = str(p.keyInInterpolationType(index)).toLowerCase(); } catch (e1) {}
+        try { b = str(p.keyOutInterpolationType(index)).toLowerCase(); } catch (e2) {}
+        if (a.indexOf("hold") >= 0 || b.indexOf("hold") >= 0) return "hold";
+        if (a.indexOf("bezier") >= 0 || b.indexOf("bezier") >= 0) return "bezier";
+        return "linear";
+    }
+    function propertyData(p, layer) {
+        if (!p) return null;
+        var d = {
+            name: str(p.name),
+            matchName: str(p.matchName),
+            propertyValueType: str(p.propertyValueType),
+            value: valueOf(p),
+            keys: [],
+            expressionEnabled: false,
+            expression: ""
+        };
+        try { d.expressionEnabled = !!p.expressionEnabled; } catch (e1) {}
+        try { d.expression = str(p.expression || ""); } catch (e2) {}
         try {
-            var parade = layer.property("ADBE Effect Parade");
-            if (!parade) return effects;
-            for (var i = 1; i <= parade.numProperties; i++) {
-                effects.push(serializeProperty(parade.property(i), [{
-                    name: parade.property(i).name,
-                    matchName: parade.property(i).matchName,
-                    index: i
-                }]));
+            for (var i = 1; i <= p.numKeys; i++) {
+                var kt = p.keyTime(i), kin = [], kout = [];
+                try { kin = easeArray(p.keyInTemporalEase(i)); } catch (e3) {}
+                try { kout = easeArray(p.keyOutTemporalEase(i)); } catch (e4) {}
+                var key = {
+                    t: normalizedTime(kt, layer),
+                    compTime: kt,
+                    value: cleanValue(p.keyValue(i)),
+                    interpolation: interpolation(p, i),
+                    inEase: kin,
+                    outEase: kout,
+                    temporalAutoBezier: false,
+                    temporalContinuous: false
+                };
+                try { key.temporalAutoBezier = !!p.keyTemporalAutoBezier(i); } catch (e5) {}
+                try { key.temporalContinuous = !!p.keyTemporalContinuous(i); } catch (e6) {}
+                d.keys.push(key);
             }
-        } catch (_) {}
-        return effects;
+        } catch (e7) {}
+        return d;
+    }
+    function walkProperties(group, layer, prefix, result) {
+        if (!group) return;
+        for (var i = 1; i <= group.numProperties; i++) {
+            var p = group.property(i);
+            var path = prefix ? prefix + "/" + str(p.name) : str(p.name);
+            var isGroup = false;
+            try {
+                isGroup = p.propertyType !== PropertyType.PROPERTY && p.numProperties > 0;
+            } catch (e) {}
+            if (isGroup) walkProperties(p, layer, path, result);
+            else {
+                var data = propertyData(p, layer);
+                if (data) { data.path = path; result.push(data); }
+            }
+        }
+    }
+    function findChild(group, names) {
+        if (!group) return null;
+        for (var i = 1; i <= group.numProperties; i++) {
+            var p = group.property(i);
+            for (var j = 0; j < names.length; j++) {
+                if (str(p.matchName) === names[j] || str(p.name) === names[j]) return p;
+            }
+        }
+        return null;
+    }
+    function getTransform(layer) {
+        var group = null;
+        try { group = layer.property("ADBE Transform Group"); } catch (e) {}
+        if (!group) return {};
+        function prop(names) {
+            var p = findChild(group, names);
+            return p ? propertyData(p, layer) : null;
+        }
+        return {
+            position: prop(["ADBE Position", "Position"]),
+            scale: prop(["ADBE Scale", "Scale"]),
+            rotation: prop(["ADBE Rotate Z", "ADBE Rotate", "Rotation"]),
+            opacity: prop(["ADBE Opacity", "Opacity"]),
+            anchorPoint: prop(["ADBE Anchor Point", "Anchor Point"])
+        };
+    }
+    function getEffects(layer) {
+        var list = [], parade = null;
+        try { parade = layer.property("ADBE Effect Parade"); } catch (e) {}
+        if (!parade) return list;
+        for (var i = 1; i <= parade.numProperties; i++) {
+            var effect = parade.property(i), props = [], enabled = true;
+            walkProperties(effect, layer, "", props);
+            try { enabled = !!effect.enabled; } catch (e1) {}
+            list.push({
+                name: str(effect.name),
+                matchName: str(effect.matchName),
+                enabled: enabled,
+                stackIndex: i - 1,
+                properties: props
+            });
+        }
+        return list;
+    }
+    function signature(effect) { return str(effect.matchName) + "|" + str(effect.name); }
+    function changedEffects(before, after) {
+        var bySignature = {}, used = {}, result = [];
+        for (var i = 0; i < before.length; i++) {
+            var sig = signature(before[i]);
+            if (!bySignature[sig]) bySignature[sig] = [];
+            bySignature[sig].push(before[i]);
+        }
+        for (var j = 0; j < after.length; j++) {
+            var current = after[j], sig2 = signature(current);
+            var index = used[sig2] || 0;
+            used[sig2] = index + 1;
+            var previous = bySignature[sig2] && bySignature[sig2][index];
+            if (!previous || json(previous) !== json(current)) result.push(current);
+        }
+        return result;
     }
 
-    var comp = app.project.activeItem;
-    if (!(comp instanceof CompItem)) {
-        alert("Open a composition and select one layer first.");
+    var comp = app.project && app.project.activeItem;
+    if (!(comp && comp instanceof CompItem)) {
+        alert("Open a composition and select one layer before running the Pegas FFX bridge.");
         return;
     }
-    if (comp.selectedLayers.length !== 1) {
-        alert("Select exactly one target layer, then run the exporter again.");
+    if (!comp.selectedLayers || comp.selectedLayers.length !== 1) {
+        alert("Select exactly one target layer in the active composition.");
         return;
     }
-
-    var preset = File.openDialog("Choose an After Effects .ffx preset", "*.ffx");
-    if (!preset) return;
-    if (!preset.exists) {
-        alert("The selected preset file does not exist.");
-        return;
-    }
+    var preset = File.openDialog("Choose an Adobe After Effects .ffx preset", "*.ffx");
+    if (!preset || !preset.exists) return;
 
     var layer = comp.selectedLayers[0];
-    var before = [];
-    try {
-        var paradeBefore = layer.property("ADBE Effect Parade");
-        if (paradeBefore) {
-            for (var b = 1; b <= paradeBefore.numProperties; b++)
-                before.push(paradeBefore.property(b).matchName + "|" + paradeBefore.property(b).name);
-        }
-    } catch (_) {}
+    var beforeEffects = getEffects(layer);
+    var beforeTransform = getTransform(layer);
 
-    app.beginUndoGroup("Pegas Effects — Apply and export FFX");
+    app.beginUndoGroup("Pegas Effects — Apply FFX preset");
     try {
         layer.applyPreset(preset);
     } catch (e) {
         app.endUndoGroup();
-        alert("After Effects could not apply this FFX preset:\n" + e.toString());
+        alert("After Effects could not apply this FFX preset:\n" + str(e));
         return;
     }
     app.endUndoGroup();
 
-    var allEffects = findPresetEffects(layer);
-    var added = [];
-    for (var i = 0; i < allEffects.length; i++) {
-        var sig = allEffects[i].matchName + "|" + allEffects[i].name;
-        var found = false;
-        for (var j = 0; j < before.length; j++) if (before[j] === sig) found = true;
-        if (!found) added.push(allEffects[i]);
+    var afterEffects = getEffects(layer);
+    var afterTransform = getTransform(layer);
+    var effects = changedEffects(beforeEffects, afterEffects);
+    var transform = {};
+    for (var key in afterTransform) if (own(afterTransform, key)) {
+        if (afterTransform[key] && json(beforeTransform[key]) !== json(afterTransform[key])) {
+            transform[key] = afterTransform[key];
+        }
     }
 
     var data = {
-        format: "pegas-effects-ae-preset",
-        schemaVersion: 1,
+        format: "cutroom-ae-export",
+        version: 1,
+        exporter: { name: "Pegas Effects FFX Bridge", version: "2.0" },
         source: {
             fileName: preset.name,
-            filePath: preset.fsName,
             sourceFormat: "Adobe After Effects FFX",
             parsedBy: "Adobe After Effects scripting API",
-            composition: comp.name,
-            layer: layer.name,
             exportedAt: (new Date()).toUTCString()
         },
-        compatibility: {
-            note: "Values and keyframes are extracted from the layer after After Effects applied the FFX. Plug-in internals, expressions and unsupported property types may need manual mapping.",
-            effectsAdded: added.length,
-            fullEffectStackIncluded: true
+        composition: {
+            name: str(comp.name),
+            width: comp.width,
+            height: comp.height,
+            frameRate: comp.frameRate,
+            duration: comp.duration,
+            frameDuration: comp.frameDuration
         },
-        effectsAdded: added,
-        effectStackAfterApply: allEffects
+        layer: {
+            name: str(layer.name),
+            index: layer.index,
+            inPoint: layer.inPoint,
+            outPoint: layer.outPoint,
+            startTime: layer.startTime,
+            stretch: layer.stretch,
+            threeDLayer: !!layer.threeDLayer,
+            sourceName: (layer.source && layer.source.name) ? str(layer.source.name) : ""
+        },
+        transform: transform,
+        effects: effects,
+        effectStackAfterApply: afterEffects,
+        notes: [
+            "Only new or changed effects are listed in effects; the full stack is preserved in effectStackAfterApply.",
+            "Property values and keyframe times are read from After Effects after it applies the FFX preset.",
+            "Keyframe times are normalized to the selected layer in/out range; compTime is also retained.",
+            "Expressions are preserved as source text and are not executed by Pegas Effects.",
+            "Unsupported plug-ins remain in sourceData/import diagnostics and are not replaced by invented values."
+        ]
     };
 
-    var out = File.saveDialog("Save Pegas Effects JSON preset", "*.json");
-    if (!out) return;
-    if (!/\.json$/i.test(out.name)) out = new File(out.fsName + ".json");
-    out.encoding = "UTF-8";
-    if (!out.open("w")) {
-        alert("Could not create the JSON output file.");
+    var target = File.saveDialog("Save Pegas Effects After Effects JSON export", "JSON:*.json");
+    if (!target) return;
+    if (!/\.json$/i.test(target.name)) target = new File(target.fsName + ".json");
+    target.encoding = "UTF-8";
+    target.lineFeed = "Unix";
+    if (!target.open("w")) {
+        alert("Could not write the JSON export: " + target.error);
         return;
     }
-    out.write(json(data));
-    out.close();
-
-    alert("JSON preset exported:\n" + out.fsName +
-        "\n\nNew effects detected: " + added.length +
-        "\n\nImport this JSON into Pegas Effects. Check unsupported plug-in properties before relying on an exact match.");
+    target.write(json(data));
+    target.close();
+    alert("Pegas Effects JSON export created.\n\nChanged/new effects: " + effects.length +
+        "\nChanged transforms: " + Object.keys(transform).length +
+        "\n\nImport this JSON in Pegas Effects' Presets panel and review its compatibility report.");
 })();
