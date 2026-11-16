@@ -24,10 +24,10 @@ jobs:
           import re
           from pathlib import Path
           html = Path("index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r'<script\\b([^>]*)>([\\s\\S]*?)</script>', html, re.I)
-          inline = [body for attrs, body in scripts if not re.search(r'\\bsrc\\s*=', attrs, re.I) and body.strip()]
+          scripts = re.findall(r'<script\b([^>]*)>([\s\S]*?)</script>', html, re.I)
+          inline = [body for attrs, body in scripts if not re.search(r'\bsrc\s*=', attrs, re.I) and body.strip()]
           assert inline, "No inline application script found"
-          Path("/tmp/pegas-app.js").write_text("\\n".join(inline), encoding="utf-8")
+          Path("/tmp/pegas-app.js").write_text("\n".join(inline), encoding="utf-8")
           PY
           node --check /tmp/pegas-app.js
           cp Pegas-FFX-to-JSON.jsx /tmp/pegas-ffx-bridge.js
