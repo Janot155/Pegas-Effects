@@ -1,0 +1,37 @@
+name: Pegas Effects validation
+on:
+  push:
+    branches:
+      - main
+      - pegas-frameify-upgrade
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  syntax-and-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Extract and syntax-check the browser application
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r'<script\\b([^>]*)>([\\s\\S]*?)</script>', html, re.I)
+          inline = [body for attrs, body in scripts if not re.search(r'\\bsrc\\s*=', attrs, re.I) and body.strip()]
+          assert inline, "No inline application script found"
+          Path("/tmp/pegas-app.js").write_text("\\n".join(inline), encoding="utf-8")
+          PY
+          node --check /tmp/pegas-app.js
+          cp Pegas-FFX-to-JSON.jsx /tmp/pegas-ffx-bridge.js
+          node --check /tmp/pegas-ffx-bridge.js
+          node --check src/audio/BeatDetection.js
+      - name: Run integration smoke tests
+        run: node tests/validate.cjs
